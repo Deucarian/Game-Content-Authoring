@@ -1,0 +1,21 @@
+{
+  "packageId": "com.deucarian.game-content-authoring",
+  "displayName": "Deucarian Game Content Authoring",
+  "ownedCapabilities": [
+    "game-content-authoring"
+  ],
+  "runtimeAssemblies": [],
+  "editorAssemblies": [
+    "Deucarian.GameContentAuthoring.Editor"
+  ],
+  "sampleAssemblies": [],
+  "testAssemblies": [],
+  "requiredDependencies": [
+    "com.deucarian.common",
+    "com.deucarian.editor"
+  ],
+  "optionalVersionDefinedDependencies": [],
+  "allowedDirectDebugCalls": [],
+  "allowedDirectUnityObjectLifetimeCalls": [],
+  "expectedSamplesRoot": ""
+}

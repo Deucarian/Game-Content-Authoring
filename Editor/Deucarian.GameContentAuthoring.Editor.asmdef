@@ -1,0 +1,19 @@
+{
+  "name": "Deucarian.GameContentAuthoring.Editor",
+  "rootNamespace": "Deucarian.GameContentAuthoring.Editor",
+  "references": [
+    "Deucarian.Common",
+    "Deucarian.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
