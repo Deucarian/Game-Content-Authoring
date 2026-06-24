@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Moved the Game Content Authoring menu to `Tools/Deucarian/Game Content Authoring`.
+- Restyled the shared authoring shell with Deucarian Editor wallpaper, frosted cards, provider sidebar, styled validation cards, and a bottom status bar.
+
 ## 0.1.0
 
 - Added shared Deucarian Game Content Authoring editor shell.
