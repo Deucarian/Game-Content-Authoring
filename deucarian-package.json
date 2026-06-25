@@ -9,7 +9,9 @@
     "Deucarian.GameContentAuthoring.Editor"
   ],
   "sampleAssemblies": [],
-  "testAssemblies": [],
+  "testAssemblies": [
+    "Deucarian.GameContentAuthoring.Tests"
+  ],
   "requiredDependencies": [
     "com.deucarian.common",
     "com.deucarian.editor"
