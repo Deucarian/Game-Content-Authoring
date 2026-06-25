@@ -121,6 +121,10 @@ namespace Deucarian.GameContentAuthoring.Editor
                 UnityEngine.Object[] assetObjects = AssetDatabase.LoadAllAssetsAtPath(item.Path);
                 for (int j = 0; j < assetObjects.Length; j++)
                     AddSerializedReferences(item, assetObjects[j], objectMap);
+
+                UnityEngine.Object[] companionObjects = LoadCompanionAssetObjects(item);
+                for (int j = 0; j < companionObjects.Length; j++)
+                    AddSerializedReferences(item, companionObjects[j], objectMap);
             }
 
             for (int i = 0; i < items.Count; i++)
@@ -129,6 +133,70 @@ namespace Deucarian.GameContentAuthoring.Editor
                 for (int j = 0; j < source.DirectReferences.Count; j++)
                     source.DirectReferences[j].Target.AddReverseReference(new GameContentLibraryReference(source, source.DirectReferences[j].PropertyPath));
             }
+        }
+
+        private static UnityEngine.Object[] LoadCompanionAssetObjects(GameContentLibraryItem item)
+        {
+            if (item == null || string.IsNullOrWhiteSpace(item.Path) || string.IsNullOrWhiteSpace(item.Folder))
+                return Array.Empty<UnityEngine.Object>();
+
+            string prefix = GetRootAssetPrefix(item);
+            if (string.IsNullOrWhiteSpace(prefix))
+                return Array.Empty<UnityEngine.Object>();
+
+            string[] guids = AssetDatabase.FindAssets("t:ScriptableObject", new[] { item.Folder });
+            var objects = new List<UnityEngine.Object>();
+            var seen = new HashSet<UnityEngine.Object>();
+
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (string.Equals(path, item.Path, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (!string.Equals(System.IO.Path.GetDirectoryName(path)?.Replace("\\", "/"), item.Folder, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string fileName = System.IO.Path.GetFileNameWithoutExtension(path);
+                if (string.IsNullOrWhiteSpace(fileName) || !fileName.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                UnityEngine.Object[] assetObjects = AssetDatabase.LoadAllAssetsAtPath(path);
+                for (int j = 0; j < assetObjects.Length; j++)
+                {
+                    UnityEngine.Object assetObject = assetObjects[j];
+                    if (assetObject != null && seen.Add(assetObject))
+                        objects.Add(assetObject);
+                }
+            }
+
+            return objects.ToArray();
+        }
+
+        private static string GetRootAssetPrefix(GameContentLibraryItem item)
+        {
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(item.Path);
+            if (string.IsNullOrWhiteSpace(fileName))
+                return string.Empty;
+
+            string[] rootSuffixes =
+            {
+                "_AttackDefinition",
+                "_EnemyDefinition",
+                "_WaveDefinition",
+                "_WeaponDefinition",
+                "_RunUpgradeDefinition",
+                "_GameContentSet",
+                "_ContentPack"
+            };
+
+            for (int i = 0; i < rootSuffixes.Length; i++)
+            {
+                string suffix = rootSuffixes[i];
+                if (fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    return fileName.Substring(0, fileName.Length - suffix.Length);
+            }
+
+            return fileName;
         }
 
         private static void AddSerializedReferences(
@@ -345,7 +413,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 string id = duplicates[i].First().Id;
                 string category = duplicates[i].First().Category;
-                string message = "Duplicate " + category + " ID '" + id + "' appears in " + duplicates[i].Count().ToString(CultureInfo.InvariantCulture) + " assets.";
+                string paths = string.Join(", ", duplicates[i].Select(item => item.Path).OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
+                string message = "Duplicate " + category + " ID '" + id + "' appears in " + duplicates[i].Count().ToString(CultureInfo.InvariantCulture) + " assets: " + paths + ".";
                 reportIssues.Add(GameContentLibraryIssue.Error("Duplicate IDs", message));
                 foreach (GameContentLibraryItem item in duplicates[i])
                     item.AddIssue(GameContentLibraryIssue.Error("ID", message));
