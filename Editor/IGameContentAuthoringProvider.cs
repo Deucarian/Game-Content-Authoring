@@ -9,5 +9,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         bool Enabled { get; }
         void OnSelected();
         void Draw(GameContentAuthoringContext context);
+        void DrawPreview(GameContentAuthoringPreviewContext context);
+        void StopPreview();
     }
 }
