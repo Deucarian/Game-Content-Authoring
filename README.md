@@ -4,7 +4,7 @@ Current package version: 0.1.0
 
 Shared editor shell for Deucarian game content authoring providers.
 
-This package owns the `Tools/Deucarian/Game Content Authoring` window, provider discovery, shared validation display, shared asset path helpers, and common create-result UI. Gameplay content types remain in their domain packages.
+This package owns the `Tools/Deucarian/Game Content Authoring` window, provider discovery, shared validation display, shared asset path helpers, rich preview panel primitives, and common create-result UI. Gameplay content types remain in their domain packages.
 
 Provider packages implement `IGameContentAuthoringProvider` in an Editor assembly and register with `GameContentAuthoringProviderRegistry`.
 
@@ -15,6 +15,7 @@ Provider packages implement `IGameContentAuthoringProvider` in an Editor assembl
 - Shared validation/result models for authoring flows.
 - Shared asset path, folder, duplicate ID, and overwrite helpers.
 - Shared preview/result/create button UI behavior.
+- Shared preview context helpers for thumbnails, timeline rows, warnings, status text, and preview buttons.
 - Installed provider diagnostics list.
 
 ## What This Package Does Not Own
@@ -26,5 +27,6 @@ This package does not contain attack, enemy, wave, tower, upgrade, loot, ability
 1. Add `com.deucarian.game-content-authoring` as a dependency of the provider package.
 2. Reference `Deucarian.GameContentAuthoring.Editor` from the provider package's Editor asmdef only.
 3. Implement `IGameContentAuthoringProvider`.
-4. Register the provider during editor load with `GameContentAuthoringProviderRegistry.Register(...)`.
-5. Keep runtime assemblies free of references to this package.
+4. Draw domain-specific preview content from `DrawPreview(...)`, and release any editor-only preview state from `StopPreview()`.
+5. Register the provider during editor load with `GameContentAuthoringProviderRegistry.Register(...)`.
+6. Keep runtime assemblies free of references to this package.

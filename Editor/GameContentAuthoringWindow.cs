@@ -9,10 +9,14 @@ namespace Deucarian.GameContentAuthoring.Editor
     {
         public const string WindowTitle = "Game Content Authoring";
         public const string MenuPath = "Tools/Deucarian/Game Content Authoring";
+        private const float WidePreviewBreakpoint = 1180f;
+        private const float PreviewPanelWidth = 380f;
         private Vector2 _scroll;
+        private Vector2 _previewScroll;
         private int _selectedProvider;
         private GameContentCreationResult _lastResult;
         private GameContentAuthoringValidationResult _lastValidation;
+        private string _previewStatus = "Preview idle";
 
         [MenuItem(MenuPath)]
         public static void Open()
@@ -38,11 +42,16 @@ namespace Deucarian.GameContentAuthoring.Editor
                 using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandHeight(true)))
                 {
                     DrawProviderRail(providers);
-                    DrawAuthoringSurface(providers);
+                    DrawContentSurface(providers);
                 }
 
                 DrawBottomStatus(providers);
             }
+        }
+
+        private void OnDisable()
+        {
+            StopSelectedProvider();
         }
 
         private void DrawHeader(int providerCount)
@@ -104,13 +113,44 @@ namespace Deucarian.GameContentAuthoring.Editor
             EditorGUILayout.EndVertical();
         }
 
-        private void DrawAuthoringSurface(IReadOnlyList<IGameContentAuthoringProvider> providers)
+        private void DrawContentSurface(IReadOnlyList<IGameContentAuthoringProvider> providers)
         {
-            Rect rect = EditorGUILayout.BeginVertical(GUIStyle.none, GUILayout.ExpandHeight(true));
+            bool wide = position.width >= WidePreviewBreakpoint;
+            if (wide)
+            {
+                using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandHeight(true)))
+                {
+                    DrawAuthoringSurface(providers, GUILayout.ExpandHeight(true));
+                    DrawPreviewSurface(providers, GUILayout.Width(PreviewPanelWidth), GUILayout.ExpandHeight(true));
+                }
+
+                return;
+            }
+
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
+            {
+                DrawAuthoringSurface(providers, GUILayout.ExpandHeight(true));
+                DrawPreviewSurface(providers, GUILayout.Height(Mathf.Max(230f, position.height * 0.32f)));
+            }
+        }
+
+        private void DrawAuthoringSurface(IReadOnlyList<IGameContentAuthoringProvider> providers, params GUILayoutOption[] options)
+        {
+            Rect rect = EditorGUILayout.BeginVertical(GUIStyle.none, options);
             DeucarianEditorVisualShell.DrawFrostedSurface(rect, DeucarianEditorTheme.GlassPanel, DeucarianEditorTheme.Border);
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             _lastValidation = null;
             DrawSelectedProvider(providers);
+            EditorGUILayout.EndScrollView();
+            EditorGUILayout.EndVertical();
+        }
+
+        private void DrawPreviewSurface(IReadOnlyList<IGameContentAuthoringProvider> providers, params GUILayoutOption[] options)
+        {
+            Rect rect = EditorGUILayout.BeginVertical(GUIStyle.none, options);
+            DeucarianEditorVisualShell.DrawFrostedSurface(rect, DeucarianEditorTheme.GlassPanel, DeucarianEditorTheme.Border);
+            _previewScroll = EditorGUILayout.BeginScrollView(_previewScroll);
+            DrawSelectedProviderPreview(providers);
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
         }
@@ -142,17 +182,55 @@ namespace Deucarian.GameContentAuthoring.Editor
             provider.Draw(context);
         }
 
+        private void DrawSelectedProviderPreview(IReadOnlyList<IGameContentAuthoringProvider> providers)
+        {
+            if (providers.Count == 0)
+            {
+                DeucarianEditorCards.DrawCard("Preview", () =>
+                {
+                    EditorGUILayout.LabelField("Install an authoring provider to enable rich previews.", DeucarianEditorStyles.MutedLabel);
+                });
+                return;
+            }
+
+            _selectedProvider = Mathf.Clamp(_selectedProvider, 0, providers.Count - 1);
+            IGameContentAuthoringProvider provider = providers[_selectedProvider];
+            DeucarianEditorCards.DrawCard("Live Preview", () =>
+            {
+                EditorGUILayout.LabelField(provider.DisplayName, DeucarianEditorStyles.SectionTitle);
+                EditorGUILayout.LabelField("Preview editor-only assets and authored runtime data without changing the active scene.", DeucarianEditorStyles.MutedLabel);
+            });
+
+            var context = new GameContentAuthoringPreviewContext(
+                this,
+                provider,
+                status => _previewStatus = string.IsNullOrWhiteSpace(status) ? "Preview idle" : status,
+                () => _previewStatus);
+            provider.DrawPreview(context);
+        }
+
         private void SelectProvider(int index)
         {
             if (_selectedProvider == index) return;
+            StopSelectedProvider();
             _selectedProvider = index;
             _lastResult = null;
             _lastValidation = null;
+            _previewStatus = "Preview idle";
             _scroll = Vector2.zero;
+            _previewScroll = Vector2.zero;
             GUI.FocusControl(null);
             IReadOnlyList<IGameContentAuthoringProvider> providers = GameContentAuthoringProviderRegistry.Providers;
             if (index >= 0 && index < providers.Count)
                 providers[index].OnSelected();
+        }
+
+        private void StopSelectedProvider()
+        {
+            IReadOnlyList<IGameContentAuthoringProvider> providers = GameContentAuthoringProviderRegistry.Providers;
+            if (providers.Count == 0) return;
+            int index = Mathf.Clamp(_selectedProvider, 0, providers.Count - 1);
+            providers[index].StopPreview();
         }
 
         private void DrawBottomStatus(IReadOnlyList<IGameContentAuthoringProvider> providers)
@@ -161,7 +239,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 ? "No provider"
                 : providers[Mathf.Clamp(_selectedProvider, 0, providers.Count - 1)].DisplayName;
             string validation = GetValidationSummary();
-            string operation = _lastResult == null ? "No operation yet" : _lastResult.Message;
+            string operation = _lastResult == null ? _previewStatus : _lastResult.Message;
             DeucarianEditorStatusPanel.DrawStatusBar(providerName, validation, operation);
         }
 
