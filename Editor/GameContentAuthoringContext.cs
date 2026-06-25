@@ -71,12 +71,24 @@ namespace Deucarian.GameContentAuthoring.Editor
                 return;
             }
 
-            string summary = result.ErrorCount == 0
-                ? result.WarningCount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " warning(s). You can create the asset after confirming any prompts."
-                : result.ErrorCount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " blocking issue(s) and " + result.WarningCount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " warning(s).";
-            DeucarianEditorStatus status = result.ErrorCount == 0
-                ? DeucarianEditorStatus.Warning
-                : DeucarianEditorStatus.Error;
+            string summary;
+            DeucarianEditorStatus status;
+            if (result.ErrorCount > 0)
+            {
+                summary = result.ErrorCount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " blocking issue(s) and " + result.WarningCount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " warning(s).";
+                status = DeucarianEditorStatus.Error;
+            }
+            else if (result.WarningCount > 0)
+            {
+                summary = result.WarningCount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " warning(s). You can create the asset after confirming any prompts.";
+                status = DeucarianEditorStatus.Warning;
+            }
+            else
+            {
+                summary = result.Issues.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " info item(s).";
+                status = DeucarianEditorStatus.Info;
+            }
+
             List<string> messages = new List<string>();
 
             for (int i = 0; i < result.Issues.Count; i++)
