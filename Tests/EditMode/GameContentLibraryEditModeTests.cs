@@ -68,6 +68,7 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(report.Groups.Single(group => group.Name == "Tower / Weapon").Items.Count, Is.EqualTo(1));
             Assert.That(report.Groups.Single(group => group.Name == "Upgrades").Items.Count, Is.EqualTo(1));
             Assert.That(report.Groups.Single(group => group.Name == "Game / Run Content Sets").Items.Count, Is.EqualTo(1));
+            Assert.That(report.Groups.Single(group => group.Name == "Content Packs").Items.Count, Is.EqualTo(0));
         }
 
         [Test]
@@ -116,6 +117,28 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(summary.EnemyCount, Is.EqualTo(1));
             Assert.That(summary.WaveCount, Is.EqualTo(1));
             Assert.That(summary.UpgradeCount, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Scan_BuildsContentPackDependencyAndReadySummary()
+        {
+            GameContentLibraryReport report = BuildValidContentPack();
+            GameContentLibraryItem contentPack = Find(report, GameContentLibraryKind.ContentPack);
+            GameContentLibraryContentPackSummary summary = report.GetContentPackSummary(contentPack);
+            string markdown = GameContentLibraryReportWriter.ToContentPackMarkdown(report, contentPack);
+
+            Assert.That(report.Items.Count, Is.EqualTo(7));
+            Assert.That(report.Groups.Single(group => group.Name == "Content Packs").Items.Count, Is.EqualTo(1));
+            Assert.That(summary, Is.Not.Null);
+            Assert.That(summary.Ready, Is.True);
+            Assert.That(summary.ContentSetCount, Is.EqualTo(1));
+            Assert.That(summary.WeaponCount, Is.EqualTo(1));
+            Assert.That(summary.EnemyCount, Is.EqualTo(1));
+            Assert.That(summary.WaveCount, Is.EqualTo(1));
+            Assert.That(summary.UpgradeCount, Is.EqualTo(1));
+            Assert.That(GameContentLibraryReportWriter.BuildDependencyLines(contentPack, 4).Any(line => line.Contains("Game / Run Content Sets -> Basic Content Set")), Is.True);
+            Assert.That(GameContentLibraryReportWriter.BuildDependencyLines(contentPack, 4).Any(line => line.Contains("Tower / Weapon -> Basic Tower")), Is.True);
+            Assert.That(markdown, Does.Contain("Content Sets: 1"));
         }
 
         [Test]
@@ -225,6 +248,26 @@ namespace Deucarian.GameContentAuthoring.Tests
 
         private GameContentLibraryReport BuildValidContentSet()
         {
+            BuildValidContentSetAsset();
+            return GameContentLibraryService.Scan(_root);
+        }
+
+        private GameContentLibraryReport BuildValidContentPack()
+        {
+            GameContentSetAsset contentSet = BuildValidContentSetAsset();
+            CreateAsset<GameContentPackAsset>("ContentPack", asset =>
+            {
+                asset.Id = "contentpack.basic";
+                asset.DisplayName = "Basic Content Pack";
+                asset.ContentSets = new[] { contentSet };
+                asset.DefaultContentSet = contentSet;
+            });
+
+            return GameContentLibraryService.Scan(_root);
+        }
+
+        private GameContentSetAsset BuildValidContentSetAsset()
+        {
             AttackDefinitionAsset attack = CreateAsset<AttackDefinitionAsset>("Attack", asset =>
             {
                 asset.Id = "attack.basic";
@@ -253,7 +296,7 @@ namespace Deucarian.GameContentAuthoring.Tests
                 asset.DisplayName = "Basic Upgrade";
                 asset.Target = weapon;
             });
-            CreateAsset<GameContentSetAsset>("ContentSet", asset =>
+            return CreateAsset<GameContentSetAsset>("ContentSet", asset =>
             {
                 asset.Id = "content.basic";
                 asset.DisplayName = "Basic Content Set";
@@ -263,8 +306,6 @@ namespace Deucarian.GameContentAuthoring.Tests
                 asset.WaveSet = new[] { wave };
                 asset.UpgradePool = new[] { upgrade };
             });
-
-            return GameContentLibraryService.Scan(_root);
         }
 
         private TAsset CreateAsset<TAsset>(string name, Action<TAsset> configure) where TAsset : ScriptableObject
