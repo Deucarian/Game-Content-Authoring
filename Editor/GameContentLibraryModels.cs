@@ -9,6 +9,7 @@ namespace Deucarian.GameContentAuthoring.Editor
     {
         private readonly List<GameContentLibraryGroup> _groups = new List<GameContentLibraryGroup>();
         private readonly List<GameContentLibraryContentSetSummary> _contentSetSummaries = new List<GameContentLibraryContentSetSummary>();
+        private readonly List<GameContentLibraryContentPackSummary> _contentPackSummaries = new List<GameContentLibraryContentPackSummary>();
 
         internal GameContentLibraryReport(string rootPath, IReadOnlyList<GameContentLibraryItem> items, IReadOnlyList<GameContentLibraryIssue> reportIssues)
         {
@@ -22,11 +23,13 @@ namespace Deucarian.GameContentAuthoring.Editor
         public IReadOnlyList<GameContentLibraryIssue> ReportIssues { get; }
         public IReadOnlyList<GameContentLibraryGroup> Groups => _groups;
         public IReadOnlyList<GameContentLibraryContentSetSummary> ContentSetSummaries => _contentSetSummaries;
+        public IReadOnlyList<GameContentLibraryContentPackSummary> ContentPackSummaries => _contentPackSummaries;
         public IEnumerable<GameContentLibraryIssue> AllIssues => ReportIssues.Concat(Items.SelectMany(item => item.Issues));
         public int BlockerCount => AllIssues.Count(issue => issue.Severity == GameContentAuthoringValidationSeverity.Error);
         public int WarningCount => AllIssues.Count(issue => issue.Severity == GameContentAuthoringValidationSeverity.Warning);
         public int InfoCount => AllIssues.Count(issue => issue.Severity == GameContentAuthoringValidationSeverity.Info);
         public int ReadyContentSetCount => _contentSetSummaries.Count(summary => summary.Ready);
+        public int ReadyContentPackCount => _contentPackSummaries.Count(summary => summary.Ready);
 
         public GameContentAuthoringValidationResult ToValidationResult()
         {
@@ -39,6 +42,12 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (item == null) return null;
             return _contentSetSummaries.FirstOrDefault(summary => ReferenceEquals(summary.Item, item));
+        }
+
+        public GameContentLibraryContentPackSummary GetContentPackSummary(GameContentLibraryItem item)
+        {
+            if (item == null) return null;
+            return _contentPackSummaries.FirstOrDefault(summary => ReferenceEquals(summary.Item, item));
         }
 
         internal void RebuildGroups(IReadOnlyList<GameContentLibraryTypeInfo> knownTypes)
@@ -68,6 +77,25 @@ namespace Deucarian.GameContentAuthoring.Editor
                     ? "Ready to play: all required authored content is connected."
                     : "Not ready: resolve blocker issues or add required authored content.";
                 _contentSetSummaries.Add(new GameContentLibraryContentSetSummary(contentSet, ready, message, weaponCount, enemyCount, waveCount, upgradeCount));
+            }
+        }
+
+        internal void RebuildContentPackSummaries()
+        {
+            _contentPackSummaries.Clear();
+            foreach (GameContentLibraryItem contentPack in Items.Where(item => item.Kind == GameContentLibraryKind.ContentPack))
+            {
+                HashSet<GameContentLibraryItem> membership = GameContentLibraryService.GetContentPackMembership(contentPack);
+                int contentSetCount = membership.Count(item => item.Kind == GameContentLibraryKind.ContentSet);
+                int weaponCount = membership.Count(item => item.Kind == GameContentLibraryKind.Weapon);
+                int enemyCount = membership.Count(item => item.Kind == GameContentLibraryKind.Enemy);
+                int waveCount = membership.Count(item => item.Kind == GameContentLibraryKind.Wave);
+                int upgradeCount = membership.Count(item => item.Kind == GameContentLibraryKind.Upgrade);
+                bool ready = contentPack.ErrorCount == 0 && contentSetCount > 0 && weaponCount > 0 && enemyCount > 0 && waveCount > 0;
+                string message = ready
+                    ? "Ready to install: pack resolves through at least one playable content set."
+                    : "Not ready: resolve pack blockers or include a playable content set.";
+                _contentPackSummaries.Add(new GameContentLibraryContentPackSummary(contentPack, ready, message, contentSetCount, weaponCount, enemyCount, waveCount, upgradeCount));
             }
         }
     }
@@ -204,6 +232,30 @@ namespace Deucarian.GameContentAuthoring.Editor
         public int UpgradeCount { get; }
     }
 
+    public sealed class GameContentLibraryContentPackSummary
+    {
+        public GameContentLibraryContentPackSummary(GameContentLibraryItem item, bool ready, string message, int contentSetCount, int weaponCount, int enemyCount, int waveCount, int upgradeCount)
+        {
+            Item = item;
+            Ready = ready;
+            Message = message ?? string.Empty;
+            ContentSetCount = contentSetCount;
+            WeaponCount = weaponCount;
+            EnemyCount = enemyCount;
+            WaveCount = waveCount;
+            UpgradeCount = upgradeCount;
+        }
+
+        public GameContentLibraryItem Item { get; }
+        public bool Ready { get; }
+        public string Message { get; }
+        public int ContentSetCount { get; }
+        public int WeaponCount { get; }
+        public int EnemyCount { get; }
+        public int WaveCount { get; }
+        public int UpgradeCount { get; }
+    }
+
     public enum GameContentLibraryKind
     {
         Attack = 0,
@@ -211,7 +263,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         Wave = 2,
         Weapon = 3,
         Upgrade = 4,
-        ContentSet = 5
+        ContentSet = 5,
+        ContentPack = 6
     }
 
     internal sealed class GameContentLibraryTypeInfo

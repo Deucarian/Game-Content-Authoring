@@ -143,6 +143,29 @@ namespace Deucarian.GameContentAuthoring.Editor
                     });
                 }
             }
+
+            if (selected.Kind == GameContentLibraryKind.ContentPack)
+            {
+                GameContentLibraryContentPackSummary summary = _report.GetContentPackSummary(selected);
+                if (summary != null)
+                {
+                    context.DrawCard("Ready To Install", () =>
+                    {
+                        DeucarianEditorStatusPanel.DrawStatusCard(summary.Message, summary.Ready ? DeucarianEditorStatus.Success : DeucarianEditorStatus.Warning);
+                        context.DrawSummaryRows(new[]
+                        {
+                            new GameContentAuthoringPreviewRow("Content Sets", summary.ContentSetCount.ToString(CultureInfo.InvariantCulture)),
+                            new GameContentAuthoringPreviewRow("Weapons", summary.WeaponCount.ToString(CultureInfo.InvariantCulture)),
+                            new GameContentAuthoringPreviewRow("Enemies", summary.EnemyCount.ToString(CultureInfo.InvariantCulture)),
+                            new GameContentAuthoringPreviewRow("Waves", summary.WaveCount.ToString(CultureInfo.InvariantCulture)),
+                            new GameContentAuthoringPreviewRow("Upgrades", summary.UpgradeCount.ToString(CultureInfo.InvariantCulture))
+                        });
+
+                        if (context.DrawSecondaryButton("Copy Content Pack Summary", true, GUILayout.Width(176f)))
+                            EditorGUIUtility.systemCopyBuffer = GameContentLibraryReportWriter.ToContentPackMarkdown(_report, selected);
+                    });
+                }
+            }
         }
 
         public void StopPreview()
@@ -175,7 +198,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentAuthoringValidationResult validation = _report.ToValidationResult();
             string ready = _report.Items.Count == 0
                 ? "No authored game content was found under " + _report.RootPath + "."
-                : _report.ReadyContentSetCount.ToString(CultureInfo.InvariantCulture) + " ready content set(s), " + _report.Items.Count.ToString(CultureInfo.InvariantCulture) + " authored asset(s).";
+                : _report.ReadyContentSetCount.ToString(CultureInfo.InvariantCulture) + " ready content set(s), " + _report.ReadyContentPackCount.ToString(CultureInfo.InvariantCulture) + " ready content pack(s), " + _report.Items.Count.ToString(CultureInfo.InvariantCulture) + " authored asset(s).";
             context.DrawValidation(validation, ready);
 
             context.DrawInlineCard(() =>

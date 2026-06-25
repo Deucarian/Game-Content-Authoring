@@ -23,10 +23,34 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             foreach (GameContentLibraryContentSetSummary summary in report.ContentSetSummaries)
                 builder.AppendLine("- Content Set: " + summary.Item.DisplayName + " - " + summary.Message);
+            foreach (GameContentLibraryContentPackSummary summary in report.ContentPackSummaries)
+                builder.AppendLine("- Content Pack: " + summary.Item.DisplayName + " - " + summary.Message);
 
             AppendIssues(builder, "Blockers", report.AllIssues.Where(issue => issue.Severity == GameContentAuthoringValidationSeverity.Error));
             AppendIssues(builder, "Warnings", report.AllIssues.Where(issue => issue.Severity == GameContentAuthoringValidationSeverity.Warning));
             AppendIssues(builder, "Info", report.AllIssues.Where(issue => issue.Severity == GameContentAuthoringValidationSeverity.Info));
+            return builder.ToString();
+        }
+
+        public static string ToContentPackMarkdown(GameContentLibraryReport report, GameContentLibraryItem contentPack)
+        {
+            if (report == null || contentPack == null) return string.Empty;
+            GameContentLibraryContentPackSummary summary = report.GetContentPackSummary(contentPack);
+            if (summary == null) return string.Empty;
+
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine("# " + contentPack.DisplayName);
+            builder.AppendLine();
+            builder.AppendLine("- ID: " + contentPack.Id);
+            builder.AppendLine("- Ready: " + (summary.Ready ? "Yes" : "No"));
+            builder.AppendLine("- Content Sets: " + summary.ContentSetCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("- Weapons: " + summary.WeaponCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("- Enemies: " + summary.EnemyCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("- Waves: " + summary.WaveCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("- Upgrades: " + summary.UpgradeCount.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine();
+            foreach (string line in BuildDependencyLines(contentPack, 4))
+                builder.AppendLine("- " + line);
             return builder.ToString();
         }
 

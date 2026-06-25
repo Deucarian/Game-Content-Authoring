@@ -19,7 +19,9 @@ namespace Deucarian.GameContentAuthoring.Editor
             new GameContentLibraryTypeInfo("WeaponDefinitionAsset", GameContentLibraryKind.Weapon, "Tower / Weapon"),
             new GameContentLibraryTypeInfo("RunUpgradeDefinitionAsset", GameContentLibraryKind.Upgrade, "Upgrades"),
             new GameContentLibraryTypeInfo("GameContentSetAsset", GameContentLibraryKind.ContentSet, "Game / Run Content Sets"),
-            new GameContentLibraryTypeInfo("RunContentSetAsset", GameContentLibraryKind.ContentSet, "Game / Run Content Sets")
+            new GameContentLibraryTypeInfo("RunContentSetAsset", GameContentLibraryKind.ContentSet, "Game / Run Content Sets"),
+            new GameContentLibraryTypeInfo("GameContentPackAsset", GameContentLibraryKind.ContentPack, "Content Packs"),
+            new GameContentLibraryTypeInfo("ContentPackAsset", GameContentLibraryKind.ContentPack, "Content Packs")
         };
 
         public static GameContentLibraryReport Scan(string rootPath)
@@ -91,6 +93,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentLibraryReport report = new GameContentLibraryReport(rootPath, items, reportIssues);
             report.RebuildGroups(KnownTypes);
             report.RebuildContentSetSummaries();
+            report.RebuildContentPackSummaries();
             return report;
         }
 
@@ -213,7 +216,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                 assetType.Namespace + ".WaveDefinitionValidator",
                 assetType.Namespace + ".WeaponDefinitionValidator",
                 assetType.Namespace + ".RunUpgradeDefinitionValidator",
-                assetType.Namespace + ".GameContentSetValidator"
+                assetType.Namespace + ".GameContentSetValidator",
+                assetType.Namespace + ".GameContentPackValidator"
             };
 
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
@@ -223,11 +227,19 @@ namespace Deucarian.GameContentAuthoring.Editor
                 for (int j = 0; j < assemblies.Length; j++)
                 {
                     Type type = assemblies[j].GetType(validatorNames[i], false);
-                    if (type != null) return type;
+                    if (type != null && HasApplicableValidateMethod(type, assetType)) return type;
                 }
             }
 
             return null;
+        }
+
+        private static bool HasApplicableValidateMethod(Type validatorType, Type assetType)
+        {
+            MethodInfo method = validatorType
+                .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .FirstOrDefault(candidate => string.Equals(candidate.Name, "Validate", StringComparison.Ordinal) && HasSingleAssignableParameter(candidate, assetType));
+            return method != null;
         }
 
         private static bool HasSingleAssignableParameter(MethodInfo method, Type assetType)
@@ -271,6 +283,17 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             if (item.Kind == GameContentLibraryKind.Wave && item.DirectReferences.All(reference => reference.Target.Kind != GameContentLibraryKind.Enemy))
                 item.AddIssue(GameContentLibraryIssue.Warning("Wave.Enemies", "Wave does not reference any discovered enemy assets."));
+
+            if (item.Kind == GameContentLibraryKind.ContentPack)
+            {
+                bool hasDefaultContentSet = ReadMemberValue(item.Asset, "DefaultContentSet") != null;
+                if (!hasDefaultContentSet)
+                    item.AddIssue(GameContentLibraryIssue.Error("ContentPack.DefaultContentSet", "Default Game / Run Content Set is missing."));
+
+                if (CountMemberReferences(item.Asset, "ContentSets", GameContentLibraryKind.ContentSet, item) == 0)
+                    item.AddIssue(GameContentLibraryIssue.Error("ContentPack.ContentSets", "Include at least one discovered Game / Run Content Set."));
+                return;
+            }
 
             if (item.Kind != GameContentLibraryKind.ContentSet) return;
 
@@ -334,7 +357,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             for (int i = 0; i < items.Count; i++)
             {
                 GameContentLibraryItem item = items[i];
-                if (item.Kind == GameContentLibraryKind.ContentSet) continue;
+                if (item.Kind == GameContentLibraryKind.ContentSet || item.Kind == GameContentLibraryKind.ContentPack) continue;
                 if (item.ReverseReferences.Count == 0)
                     item.AddIssue(GameContentLibraryIssue.Info("References", "No authored assets currently reference this asset."));
             }
@@ -367,6 +390,29 @@ namespace Deucarian.GameContentAuthoring.Editor
                     }
                 }
             }
+
+            AddContentPackGraphIssues(items);
+        }
+
+        private static void AddContentPackGraphIssues(IReadOnlyList<GameContentLibraryItem> items)
+        {
+            foreach (GameContentLibraryItem contentPack in items.Where(item => item.Kind == GameContentLibraryKind.ContentPack))
+            {
+                HashSet<GameContentLibraryItem> membership = GetContentPackMembership(contentPack);
+                if (membership.All(item => item.Kind != GameContentLibraryKind.ContentSet))
+                {
+                    contentPack.AddIssue(GameContentLibraryIssue.Error("ContentPack.ContentSets", "Pack does not reference any discovered Game / Run Content Sets."));
+                    continue;
+                }
+
+                foreach (GameContentLibraryItem contentSet in membership.Where(item => item.Kind == GameContentLibraryKind.ContentSet))
+                {
+                    if (contentSet.ErrorCount > 0)
+                        contentPack.AddIssue(GameContentLibraryIssue.Error("ContentPack.ContentSets", contentSet.DisplayName + " has blocking validation issues."));
+                    else if (contentSet.WarningCount > 0)
+                        contentPack.AddIssue(GameContentLibraryIssue.Warning("ContentPack.ContentSets", contentSet.DisplayName + " has validation warnings."));
+                }
+            }
         }
 
         internal static HashSet<GameContentLibraryItem> GetContentSetMembership(GameContentLibraryItem contentSet)
@@ -383,6 +429,23 @@ namespace Deucarian.GameContentAuthoring.Editor
                     continue;
                 for (int j = 0; j < direct.DirectReferences.Count; j++)
                     membership.Add(direct.DirectReferences[j].Target);
+            }
+
+            return membership;
+        }
+
+        internal static HashSet<GameContentLibraryItem> GetContentPackMembership(GameContentLibraryItem contentPack)
+        {
+            HashSet<GameContentLibraryItem> membership = new HashSet<GameContentLibraryItem>();
+            if (contentPack == null) return membership;
+            membership.Add(contentPack);
+            for (int i = 0; i < contentPack.DirectReferences.Count; i++)
+            {
+                GameContentLibraryItem direct = contentPack.DirectReferences[i].Target;
+                if (direct == null) continue;
+                membership.Add(direct);
+                if (direct.Kind != GameContentLibraryKind.ContentSet) continue;
+                membership.UnionWith(GetContentSetMembership(direct));
             }
 
             return membership;
