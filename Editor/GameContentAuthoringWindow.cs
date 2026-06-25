@@ -120,7 +120,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandHeight(true)))
                 {
-                    DrawAuthoringSurface(providers, GUILayout.ExpandHeight(true));
+                    float authoringWidth = Mathf.Max(
+                        420f,
+                        position.width - DeucarianEditorSpacing.SidebarWidth - PreviewPanelWidth - DeucarianEditorSpacing.ExtraLarge);
+                    DrawAuthoringSurface(providers, GUILayout.Width(authoringWidth), GUILayout.ExpandHeight(true));
                     DrawPreviewSurface(providers, GUILayout.Width(PreviewPanelWidth), GUILayout.ExpandHeight(true));
                 }
 
