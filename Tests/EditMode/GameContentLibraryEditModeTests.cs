@@ -88,7 +88,10 @@ namespace Deucarian.GameContentAuthoring.Tests
             GameContentLibraryReport report = GameContentLibraryService.Scan(_root);
 
             Assert.That(report.BlockerCount, Is.GreaterThanOrEqualTo(1));
-            Assert.That(report.AllIssues.Any(issue => issue.Message.Contains("Duplicate Attacks ID")), Is.True);
+            GameContentLibraryIssue duplicate = report.AllIssues.FirstOrDefault(issue => issue.Message.Contains("Duplicate Attacks ID"));
+            Assert.That(duplicate, Is.Not.Null);
+            Assert.That(duplicate.Message, Does.Contain("AttackA.asset"));
+            Assert.That(duplicate.Message, Does.Contain("AttackB.asset"));
         }
 
         [Test]
@@ -102,6 +105,62 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(weapon.DirectReferences.Any(reference => ReferenceEquals(reference.Target, attack)), Is.True);
             Assert.That(attack.ReverseReferences.Any(reference => ReferenceEquals(reference.Target, weapon)), Is.True);
             Assert.That(GameContentLibraryReportWriter.BuildDependencyLines(contentSet, 3).Any(line => line.Contains("Tower / Weapon -> Basic Tower")), Is.True);
+        }
+
+        [Test]
+        public void Scan_InspectsSameFolderSectionAssetsForReferences()
+        {
+            AttackDefinitionAsset attack = CreateAsset<AttackDefinitionAsset>("Attack", asset =>
+            {
+                asset.Id = "attack.section";
+                asset.DisplayName = "Section Attack";
+            });
+            EnemyDefinitionAsset enemy = CreateAsset<EnemyDefinitionAsset>("Enemy", asset =>
+            {
+                asset.Id = "enemy.section";
+                asset.DisplayName = "Section Enemy";
+            });
+
+            string weaponFolder = _root + "/weapon.section";
+            string waveFolder = _root + "/wave.section";
+            AssetDatabase.CreateFolder(_root, "weapon.section");
+            AssetDatabase.CreateFolder(_root, "wave.section");
+
+            WeaponDefinitionAsset weapon = CreateAssetAt<WeaponDefinitionAsset>(weaponFolder + "/weapon.section_WeaponDefinition.asset", asset =>
+            {
+                asset.Id = "weapon.section";
+                asset.DisplayName = "Section Tower";
+            });
+            CreateAssetAt<WeaponStatsSectionAsset>(weaponFolder + "/weapon.section_Stats.asset", asset => asset.Attack = attack);
+
+            WaveDefinitionAsset wave = CreateAssetAt<WaveDefinitionAsset>(waveFolder + "/wave.section_WaveDefinition.asset", asset =>
+            {
+                asset.Id = "wave.section";
+                asset.DisplayName = "Section Wave";
+            });
+            CreateAssetAt<WaveEntriesSectionAsset>(waveFolder + "/wave.section_Entries.asset", asset => asset.Enemy = enemy);
+
+            CreateAsset<GameContentSetAsset>("ContentSet", asset =>
+            {
+                asset.Id = "content.section";
+                asset.DisplayName = "Section Content Set";
+                asset.StartingWeapon = weapon;
+                asset.AvailableWeapons = new[] { weapon };
+                asset.EnemyPool = new[] { enemy };
+                asset.WaveSet = new[] { wave };
+                asset.UpgradePool = Array.Empty<RunUpgradeDefinitionAsset>();
+            });
+
+            GameContentLibraryReport report = GameContentLibraryService.Scan(_root);
+            GameContentLibraryItem weaponItem = report.Items.Single(item => item.Id == "weapon.section");
+            GameContentLibraryItem waveItem = report.Items.Single(item => item.Id == "wave.section");
+            GameContentLibraryItem attackItem = report.Items.Single(item => item.Id == "attack.section");
+            GameContentLibraryItem enemyItem = report.Items.Single(item => item.Id == "enemy.section");
+
+            Assert.That(weaponItem.DirectReferences.Any(reference => ReferenceEquals(reference.Target, attackItem)), Is.True);
+            Assert.That(waveItem.DirectReferences.Any(reference => ReferenceEquals(reference.Target, enemyItem)), Is.True);
+            Assert.That(report.AllIssues.Any(issue => issue.Path == "Weapon.Attack" && issue.Message.Contains("does not reference")), Is.False);
+            Assert.That(report.AllIssues.Any(issue => issue.Path == "Wave.Enemies" && issue.Message.Contains("does not reference")), Is.False);
         }
 
         [Test]
@@ -318,9 +377,20 @@ namespace Deucarian.GameContentAuthoring.Tests
             return asset;
         }
 
+        private static TAsset CreateAssetAt<TAsset>(string assetPath, Action<TAsset> configure) where TAsset : ScriptableObject
+        {
+            TAsset asset = ScriptableObject.CreateInstance<TAsset>();
+            asset.name = System.IO.Path.GetFileNameWithoutExtension(assetPath);
+            configure?.Invoke(asset);
+            AssetDatabase.CreateAsset(asset, assetPath);
+            AssetDatabase.SaveAssets();
+            return asset;
+        }
+
         private static GameContentLibraryItem Find(GameContentLibraryReport report, GameContentLibraryKind kind)
         {
             return report.Items.Single(item => item.Kind == kind);
         }
+
     }
 }
