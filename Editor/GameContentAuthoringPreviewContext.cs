@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Deucarian.Editor;
+using Deucarian.GameplayFoundation;
 using UnityEditor;
 using UnityEngine;
 
@@ -170,6 +171,34 @@ namespace Deucarian.GameContentAuthoring.Editor
                 warnings.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) + " preview warning(s).",
                 warnings,
                 DeucarianEditorStatus.Warning);
+        }
+
+        public void DrawValidation(ContentValidationReport report, string readyMessage = "No validation issues found.")
+        {
+            GameContentAuthoringValidationResult result = GameContentAuthoringValidationReports.ToAuthoringResult(report);
+            if (result.Issues.Count == 0)
+            {
+                DeucarianEditorStatusPanel.DrawStatusCard(readyMessage, DeucarianEditorStatus.Success);
+                return;
+            }
+
+            var messages = new List<string>();
+            for (int index = 0; index < result.Issues.Count; index++)
+            {
+                GameContentAuthoringValidationIssue issue = result.Issues[index];
+                string prefix = string.IsNullOrWhiteSpace(issue.Path) ? string.Empty : issue.Path + ": ";
+                messages.Add(prefix + issue.Message);
+            }
+
+            DeucarianEditorStatus status = result.ErrorCount > 0
+                ? DeucarianEditorStatus.Error
+                : result.WarningCount > 0
+                    ? DeucarianEditorStatus.Warning
+                    : DeucarianEditorStatus.Info;
+            DeucarianEditorStatusPanel.DrawValidationCard(
+                GameContentAuthoringValidationReports.BuildSummary(report, readyMessage),
+                messages,
+                status);
         }
 
         private static Rect FitTexture(Rect container, Texture texture, float padding)

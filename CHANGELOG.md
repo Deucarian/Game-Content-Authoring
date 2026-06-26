@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added editor-only helpers for surfacing Gameplay Foundation `ContentValidationReport` results in authoring providers.
 - Moved the Game Content Authoring menu to `Tools/Deucarian/Game Content Authoring`.
 - Restyled the shared authoring shell with Deucarian Editor wallpaper, frosted cards, provider sidebar, styled validation cards, and a bottom status bar.
 

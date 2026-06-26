@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Deucarian.GameplayFoundation;
 using Deucarian.Editor;
 using UnityEditor;
 using UnityEngine;
@@ -98,6 +99,11 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
 
             DeucarianEditorStatusPanel.DrawValidationCard(summary, messages, status);
+        }
+
+        public void DrawValidation(ContentValidationReport report, string readyMessage)
+        {
+            DrawValidation(GameContentAuthoringValidationReports.ToAuthoringResult(report), readyMessage);
         }
 
         public bool DrawCreateButton(string label, bool enabled)

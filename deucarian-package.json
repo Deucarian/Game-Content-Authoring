@@ -14,7 +14,8 @@
   ],
   "requiredDependencies": [
     "com.deucarian.common",
-    "com.deucarian.editor"
+    "com.deucarian.editor",
+    "com.deucarian.gameplay-foundation"
   ],
   "optionalVersionDefinedDependencies": [],
   "allowedDirectDebugCalls": [],

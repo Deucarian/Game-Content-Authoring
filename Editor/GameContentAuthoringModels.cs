@@ -58,6 +58,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 copy[i] = issues[i] ?? GameContentAuthoringValidationIssue.Error(string.Empty, "Unknown validation issue.");
                 if (copy[i].Severity == GameContentAuthoringValidationSeverity.Error) ErrorCount++;
                 else if (copy[i].Severity == GameContentAuthoringValidationSeverity.Warning) WarningCount++;
+                else if (copy[i].Severity == GameContentAuthoringValidationSeverity.Info) InfoCount++;
             }
 
             _issues = copy;
@@ -66,6 +67,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         public IReadOnlyList<GameContentAuthoringValidationIssue> Issues => _issues;
         public int ErrorCount { get; }
         public int WarningCount { get; }
+        public int InfoCount { get; }
         public bool IsValid => ErrorCount == 0;
         public static GameContentAuthoringValidationResult Valid { get; } = new GameContentAuthoringValidationResult(Array.Empty<GameContentAuthoringValidationIssue>());
     }

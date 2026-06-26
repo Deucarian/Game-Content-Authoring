@@ -2,7 +2,8 @@
   "name": "Deucarian.GameContentAuthoring.Tests",
   "rootNamespace": "Deucarian.GameContentAuthoring.Tests",
   "references": [
-    "Deucarian.GameContentAuthoring.Editor"
+    "Deucarian.GameContentAuthoring.Editor",
+    "Deucarian.GameplayFoundation"
   ],
   "includePlatforms": [
     "Editor"

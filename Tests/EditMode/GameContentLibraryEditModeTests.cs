@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Deucarian.GameplayFoundation;
 using Deucarian.GameContentAuthoring.Editor;
 using NUnit.Framework;
 using UnityEditor;
@@ -303,6 +304,42 @@ namespace Deucarian.GameContentAuthoring.Tests
 
             Assert.That(markdown, Does.Contain("## Blockers"));
             Assert.That(markdown, Does.Contain("Duplicate Attacks ID"));
+        }
+
+        [Test]
+        public void GameplayFoundationReportAdapter_ConvertsCountsAndMessages()
+        {
+            var report = new ContentValidationReport();
+            report.AddError("Missing stable id.", "Weapon.Id");
+            report.AddWarning("Unused reference.", "References");
+            report.AddInfo("Loaded sample content.", "Summary");
+
+            GameContentAuthoringValidationResult result = GameContentAuthoringValidationReports.ToAuthoringResult(report);
+
+            Assert.That(result.ErrorCount, Is.EqualTo(1));
+            Assert.That(result.WarningCount, Is.EqualTo(1));
+            Assert.That(result.InfoCount, Is.EqualTo(1));
+            Assert.That(result.Issues.Count, Is.EqualTo(3));
+            Assert.That(result.Issues[0].Path, Is.EqualTo("Weapon.Id"));
+            Assert.That(result.Issues[0].Message, Is.EqualTo("Missing stable id."));
+        }
+
+        [Test]
+        public void GameplayFoundationReportAdapter_WritesGroupedMarkdown()
+        {
+            var report = new ContentValidationReport();
+            report.AddError("Missing stable id.", "Weapon.Id");
+            report.AddWarning("Unused reference.", "References");
+            report.AddInfo("Loaded sample content.", "Summary");
+
+            string markdown = GameContentAuthoringValidationReports.ToMarkdown(report, "Authoring Report");
+
+            Assert.That(markdown, Does.Contain("# Authoring Report"));
+            Assert.That(markdown, Does.Contain("- Errors: 1"));
+            Assert.That(markdown, Does.Contain("## Errors"));
+            Assert.That(markdown, Does.Contain("- Weapon.Id: Missing stable id."));
+            Assert.That(markdown, Does.Contain("## Warnings"));
+            Assert.That(markdown, Does.Contain("## Info"));
         }
 
         private GameContentLibraryReport BuildValidContentSet()
