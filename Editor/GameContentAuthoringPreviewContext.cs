@@ -81,23 +81,21 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         public void DrawSummaryRow(string label, string value)
         {
-            using (new EditorGUILayout.HorizontalScope())
+            DeucarianEditorFieldRow.Draw(label, () =>
             {
-                EditorGUILayout.LabelField(label ?? string.Empty, PreviewLabelStyle, GUILayout.Width(112f));
                 EditorGUILayout.LabelField(value ?? string.Empty, PreviewValueStyle);
-            }
+            });
         }
 
         public void DrawAssetRow(string label, UnityEngine.Object asset, string emptyText)
         {
-            using (new EditorGUILayout.HorizontalScope())
+            DeucarianEditorFieldRow.Draw(label, () =>
             {
-                EditorGUILayout.LabelField(label ?? string.Empty, PreviewLabelStyle, GUILayout.Width(112f));
                 string value = asset == null ? emptyText ?? "Not assigned" : asset.name;
                 EditorGUILayout.LabelField(value, asset == null ? PreviewMutedValueStyle : PreviewValueStyle);
-                if (DrawSecondaryButton("Ping", asset != null, GUILayout.Width(54f), GUILayout.Height(22f)) && asset != null)
-                    EditorGUIUtility.PingObject(asset);
-            }
+                DeucarianEditorMiniToolbar.PingButton(asset);
+                DeucarianEditorMiniToolbar.SelectButton(asset);
+            });
         }
 
         public void DrawObjectPreview(UnityEngine.Object asset, string title, string emptyText)

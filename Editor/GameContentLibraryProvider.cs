@@ -45,15 +45,13 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 EditorGUILayout.LabelField("Browse authored assets under Assets/GameContent and validate their references as a playable recipe.", context.MutedStyle);
                 GUILayout.Space(DeucarianEditorSpacing.Small);
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    _rootPath = EditorGUILayout.TextField("Content Root", _rootPath);
-                    if (context.DrawSecondaryButton("Validate All Game Content", true, GUILayout.Width(168f)))
-                        Refresh(true);
-                }
+                _rootPath = context.DrawTextField("Content Root", _rootPath, "The library scans authored content under this project-relative folder.");
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
+                    if (context.DrawSecondaryButton("Validate All Game Content", true, GUILayout.Width(168f)))
+                        Refresh(true);
+
                     if (context.DrawSecondaryButton("Ping Root", AssetDatabase.IsValidFolder(NormalizedRoot), GUILayout.Width(92f)))
                     {
                         UnityEngine.Object folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(NormalizedRoot);

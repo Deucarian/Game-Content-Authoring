@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using Deucarian.Editor;
 using UnityEditor;
 using UnityEngine;
@@ -9,14 +11,13 @@ namespace Deucarian.GameContentAuthoring.Editor
     {
         public const string WindowTitle = "Game Content Authoring";
         public const string MenuPath = "Tools/Deucarian/Game Content Authoring";
-        private const float WidePreviewBreakpoint = 1180f;
-        private const float PreviewPanelWidth = 380f;
         private Vector2 _scroll;
         private Vector2 _previewScroll;
         private int _selectedProvider;
         private GameContentCreationResult _lastResult;
         private GameContentAuthoringValidationResult _lastValidation;
         private string _previewStatus = "Preview idle";
+        private GameContentLibraryReport _contentLibraryReport;
 
         [MenuItem(MenuPath)]
         public static void Open()
@@ -25,7 +26,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             GameContentAuthoringWindow window = GetWindow<GameContentAuthoringWindow>();
             window.titleContent = new GUIContent(WindowTitle);
-            window.minSize = new Vector2(900f, 640f);
+            window.minSize = new Vector2(640f, 560f);
             window.Show();
         }
 
@@ -34,15 +35,17 @@ namespace Deucarian.GameContentAuthoring.Editor
             DeucarianEditorWindowChrome.DrawImGuiWindowBackground(new Rect(0f, 0f, position.width, position.height));
 
             IReadOnlyList<IGameContentAuthoringProvider> providers = GameContentAuthoringProviderRegistry.Providers;
+            DeucarianEditorResponsiveLayoutState layout = DeucarianEditorResponsiveLayout.Calculate(position.width, position.height);
             GUILayout.Space(DeucarianEditorSpacing.Small);
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
             {
-                DrawHeader(providers.Count);
+                DrawHeader(providers.Count, layout);
 
                 using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandHeight(true)))
                 {
-                    DrawProviderRail(providers);
-                    DrawContentSurface(providers);
+                    DrawProviderRail(providers, layout);
+                    GUILayout.Space(DeucarianEditorSpacing.Small);
+                    DrawContentSurface(providers, layout);
                 }
 
                 DrawBottomStatus(providers);
@@ -54,19 +57,28 @@ namespace Deucarian.GameContentAuthoring.Editor
             StopSelectedProvider();
         }
 
-        private void DrawHeader(int providerCount)
+        private void DrawHeader(int providerCount, DeucarianEditorResponsiveLayoutState layout)
         {
+            if (layout.Narrow)
+            {
+                DeucarianEditorCards.DrawHeaderCard(
+                    "Game Content Authoring",
+                    "Browse, validate, and create authored content.",
+                    providerCount.ToString(CultureInfo.InvariantCulture) + " provider(s)");
+                return;
+            }
+
             DeucarianEditorCards.DrawHeaderCard(
                 "Deucarian Game Content Authoring",
                 "Create linked gameplay content through installed provider packages.",
-                providerCount.ToString(System.Globalization.CultureInfo.InvariantCulture) + " provider(s) loaded");
+                providerCount.ToString(CultureInfo.InvariantCulture) + " provider(s) loaded");
         }
 
-        private void DrawProviderRail(IReadOnlyList<IGameContentAuthoringProvider> providers)
+        private void DrawProviderRail(IReadOnlyList<IGameContentAuthoringProvider> providers, DeucarianEditorResponsiveLayoutState layout)
         {
             Rect rect = EditorGUILayout.BeginVertical(
                 DeucarianEditorSidebar.ContainerStyle,
-                GUILayout.Width(DeucarianEditorSpacing.SidebarWidth),
+                GUILayout.Width(layout.SidebarWidth),
                 GUILayout.ExpandHeight(true));
             DeucarianEditorVisualShell.DrawFrostedSurface(rect, DeucarianEditorTheme.GlassPanel, DeucarianEditorTheme.Border);
             EditorGUILayout.LabelField("Content Types", DeucarianEditorSidebar.HeadingStyle);
@@ -89,42 +101,39 @@ namespace Deucarian.GameContentAuthoring.Editor
                 }
             }
 
-            GUILayout.Space(DeucarianEditorSpacing.Medium);
-            EditorGUILayout.LabelField("Future", DeucarianEditorSidebar.HeadingStyle);
-            DeucarianEditorSidebar.DrawItem("Tower", "Future content type placeholder.", false, false, GUILayout.Height(34f));
-            DeucarianEditorSidebar.DrawItem("Upgrade", "Future content type placeholder.", false, false, GUILayout.Height(34f));
-            DeucarianEditorSidebar.DrawItem("Loot", "Future content type placeholder.", false, false, GUILayout.Height(34f));
-
             GUILayout.FlexibleSpace();
-            EditorGUILayout.LabelField("Installed Providers", DeucarianEditorSidebar.HeadingStyle);
-            if (providers.Count == 0)
+            if (!layout.Narrow)
             {
-                EditorGUILayout.LabelField("None", DeucarianEditorStyles.MutedLabel);
-            }
-            else
-            {
-                for (int i = 0; i < providers.Count; i++)
+                EditorGUILayout.LabelField("Installed Providers", DeucarianEditorSidebar.HeadingStyle);
+                if (providers.Count == 0)
                 {
-                    string state = providers[i].Enabled ? "enabled" : "disabled";
-                    EditorGUILayout.LabelField(providers[i].DisplayName + " - " + state, DeucarianEditorStyles.MutedLabel);
+                    EditorGUILayout.LabelField("None", DeucarianEditorStyles.MutedLabel);
+                }
+                else
+                {
+                    for (int i = 0; i < providers.Count; i++)
+                    {
+                        string state = providers[i].Enabled ? "enabled" : "disabled";
+                        EditorGUILayout.LabelField(providers[i].DisplayName + " - " + state, DeucarianEditorStyles.MutedLabel);
+                    }
                 }
             }
 
             EditorGUILayout.EndVertical();
         }
 
-        private void DrawContentSurface(IReadOnlyList<IGameContentAuthoringProvider> providers)
+        private void DrawContentSurface(IReadOnlyList<IGameContentAuthoringProvider> providers, DeucarianEditorResponsiveLayoutState layout)
         {
-            bool wide = position.width >= WidePreviewBreakpoint;
-            if (wide)
+            if (layout.Wide)
             {
                 using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandHeight(true)))
                 {
                     float authoringWidth = Mathf.Max(
                         420f,
-                        position.width - DeucarianEditorSpacing.SidebarWidth - PreviewPanelWidth - DeucarianEditorSpacing.ExtraLarge);
+                        position.width - layout.SidebarWidth - layout.PreviewWidth - DeucarianEditorSpacing.ExtraLarge);
                     DrawAuthoringSurface(providers, GUILayout.Width(authoringWidth), GUILayout.ExpandHeight(true));
-                    DrawPreviewSurface(providers, GUILayout.Width(PreviewPanelWidth), GUILayout.ExpandHeight(true));
+                    GUILayout.Space(DeucarianEditorSpacing.Small);
+                    DrawPreviewSurface(providers, GUILayout.Width(layout.PreviewWidth), GUILayout.ExpandHeight(true));
                 }
 
                 return;
@@ -133,7 +142,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
             {
                 DrawAuthoringSurface(providers, GUILayout.ExpandHeight(true));
-                DrawPreviewSurface(providers, GUILayout.Height(Mathf.Max(230f, position.height * 0.32f)));
+                GUILayout.Space(DeucarianEditorSpacing.Small);
+                DrawPreviewSurface(providers, GUILayout.Height(layout.StackedPreviewHeight));
             }
         }
 
@@ -179,10 +189,11 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             var context = new GameContentAuthoringContext(
                 this,
+                provider.ProviderId,
                 result => _lastResult = result,
                 () => _lastResult,
                 validation => _lastValidation = validation);
-            provider.Draw(context);
+            DrawProviderBody(provider, context);
         }
 
         private void DrawSelectedProviderPreview(IReadOnlyList<IGameContentAuthoringProvider> providers)
@@ -220,6 +231,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             _lastResult = null;
             _lastValidation = null;
             _previewStatus = "Preview idle";
+            _contentLibraryReport = null;
             _scroll = Vector2.zero;
             _previewScroll = Vector2.zero;
             GUI.FocusControl(null);
@@ -264,6 +276,170 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
 
             return "Ready";
+        }
+
+        private void DrawProviderBody(IGameContentAuthoringProvider provider, GameContentAuthoringContext context)
+        {
+            if (provider.ProviderId == GameContentLibraryProvider.ContentLibraryProviderId)
+            {
+                provider.Draw(context);
+                return;
+            }
+
+            List<GameContentLibraryItem> items = GetItemsForProvider(provider);
+            DrawExistingItems(provider, context, items);
+
+            string createKey = DeucarianEditorAccordion.BuildStateKey("game-content-authoring", provider.ProviderId, "create-new");
+            bool defaultOpen = items.Count == 0;
+            context.DrawFoldoutCard(
+                createKey,
+                "Create New",
+                "Create a new " + provider.DisplayName + " root asset and its linked sections.",
+                () => provider.Draw(context),
+                defaultOpen);
+        }
+
+        private void DrawExistingItems(IGameContentAuthoringProvider provider, GameContentAuthoringContext context, IReadOnlyList<GameContentLibraryItem> items)
+        {
+            string key = DeucarianEditorAccordion.BuildStateKey("game-content-authoring", provider.ProviderId, "existing-items");
+            string summary = items.Count.ToString(CultureInfo.InvariantCulture) + " authored item(s) under Assets/GameContent.";
+            context.DrawFoldoutCard(key, "Existing Authored Items", summary, () =>
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (context.DrawSecondaryButton("Refresh Library", true, GUILayout.Width(124f), GUILayout.Height(24f)))
+                        RefreshContentLibrary();
+                    GUILayout.FlexibleSpace();
+                }
+
+                if (items.Count == 0)
+                {
+                    DeucarianEditorStatusPanel.DrawStatusCard("No existing " + provider.DisplayName + " assets were found under Assets/GameContent.", DeucarianEditorStatus.Info);
+                    return;
+                }
+
+                for (int i = 0; i < items.Count; i++)
+                    DrawExistingItem(provider, context, items[i]);
+            }, items.Count > 0);
+        }
+
+        private static void DrawExistingItem(IGameContentAuthoringProvider provider, GameContentAuthoringContext context, GameContentLibraryItem item)
+        {
+            if (item == null) return;
+            string itemKey = DeucarianEditorAccordion.BuildStateKey("game-content-authoring", provider.ProviderId, "item", item.Key);
+            string summary = (string.IsNullOrWhiteSpace(item.Id) ? "(missing id)" : item.Id) + " - " + item.ValidationLabel;
+            context.DrawFoldoutCard(
+                itemKey,
+                item.DisplayName,
+                summary,
+                () =>
+                {
+                    context.DrawInlineCard(() =>
+                    {
+                        DeucarianEditorFieldRow.Draw("ID", () => EditorGUILayout.LabelField(string.IsNullOrWhiteSpace(item.Id) ? "(missing)" : item.Id, context.MutedStyle));
+                        DeucarianEditorFieldRow.Draw("Type", () => EditorGUILayout.LabelField(item.Category, context.MutedStyle));
+                        DeucarianEditorFieldRow.Draw("Path", () => EditorGUILayout.LabelField(item.Path, context.MutedStyle));
+                        DeucarianEditorFieldRow.Draw("Validation", () => EditorGUILayout.LabelField(item.ValidationLabel, context.MutedStyle));
+                        using (new EditorGUILayout.HorizontalScope())
+                        {
+                            DeucarianEditorMiniToolbar.PingButton(item.Asset);
+                            DeucarianEditorMiniToolbar.SelectButton(item.Asset);
+                            if (context.DrawSecondaryButton("Open Folder", AssetDatabase.IsValidFolder(item.Folder), GUILayout.Width(96f), GUILayout.Height(22f)))
+                            {
+                                UnityEngine.Object folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(item.Folder);
+                                if (folder != null)
+                                {
+                                    Selection.activeObject = folder;
+                                    EditorGUIUtility.PingObject(folder);
+                                }
+                            }
+                        }
+                    });
+
+                    DrawItemIssues(context, item);
+                    DrawItemReferences(context, "Direct References", item.DirectReferences);
+                    DrawItemReferences(context, "Referenced By", item.ReverseReferences);
+                },
+                false,
+                true,
+                () =>
+                {
+                    DeucarianEditorMiniToolbar.PingButton(item.Asset);
+                    DeucarianEditorMiniToolbar.SelectButton(item.Asset);
+                });
+        }
+
+        private static void DrawItemIssues(GameContentAuthoringContext context, GameContentLibraryItem item)
+        {
+            if (item.Issues.Count == 0)
+            {
+                DeucarianEditorStatusPanel.DrawStatusCard("No validation issues found for this authored asset.", DeucarianEditorStatus.Success);
+                return;
+            }
+
+            List<string> messages = new List<string>();
+            for (int i = 0; i < item.Issues.Count; i++)
+                messages.Add(item.Issues[i].Path + ": " + item.Issues[i].Message);
+            DeucarianEditorStatus status = item.ErrorCount > 0 ? DeucarianEditorStatus.Error : DeucarianEditorStatus.Warning;
+            DeucarianEditorStatusPanel.DrawValidationCard(item.ValidationLabel, messages, status);
+        }
+
+        private static void DrawItemReferences(GameContentAuthoringContext context, string title, IReadOnlyList<GameContentLibraryReference> references)
+        {
+            context.DrawInlineCard(() =>
+            {
+                DeucarianEditorSectionHeader.Draw(title);
+                if (references == null || references.Count == 0)
+                {
+                    EditorGUILayout.LabelField("None found.", context.MutedStyle);
+                    return;
+                }
+
+                for (int i = 0; i < references.Count; i++)
+                {
+                    GameContentLibraryReference reference = references[i];
+                    if (reference == null || reference.Target == null) continue;
+                    EditorGUILayout.LabelField(reference.Target.DisplayName + " - " + reference.PropertyPath, context.MutedStyle);
+                }
+            });
+        }
+
+        private List<GameContentLibraryItem> GetItemsForProvider(IGameContentAuthoringProvider provider)
+        {
+            GameContentLibraryKind? kind = GetProviderKind(provider);
+            if (!kind.HasValue) return new List<GameContentLibraryItem>();
+            GameContentLibraryReport report = GetContentLibraryReport();
+            return report.Items
+                .Where(item => item.Kind == kind.Value)
+                .OrderBy(item => item.DisplayName)
+                .ThenBy(item => item.Path)
+                .ToList();
+        }
+
+        private GameContentLibraryReport GetContentLibraryReport()
+        {
+            if (_contentLibraryReport == null)
+                RefreshContentLibrary();
+            return _contentLibraryReport;
+        }
+
+        private void RefreshContentLibrary()
+        {
+            _contentLibraryReport = GameContentLibraryService.Scan(GameContentLibraryProvider.DefaultRoot);
+        }
+
+        private static GameContentLibraryKind? GetProviderKind(IGameContentAuthoringProvider provider)
+        {
+            if (provider == null) return null;
+            string id = provider.ProviderId ?? string.Empty;
+            if (id.EndsWith(".attack", System.StringComparison.OrdinalIgnoreCase)) return GameContentLibraryKind.Attack;
+            if (id.EndsWith(".enemy", System.StringComparison.OrdinalIgnoreCase)) return GameContentLibraryKind.Enemy;
+            if (id.EndsWith(".wave", System.StringComparison.OrdinalIgnoreCase)) return GameContentLibraryKind.Wave;
+            if (id.EndsWith(".weapon", System.StringComparison.OrdinalIgnoreCase)) return GameContentLibraryKind.Weapon;
+            if (id.EndsWith(".upgrade", System.StringComparison.OrdinalIgnoreCase)) return GameContentLibraryKind.Upgrade;
+            if (id.Contains("game-content-set")) return GameContentLibraryKind.ContentSet;
+            if (id.Contains("content-pack")) return GameContentLibraryKind.ContentPack;
+            return null;
         }
     }
 }

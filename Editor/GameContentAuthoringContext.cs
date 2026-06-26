@@ -15,23 +15,44 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         internal GameContentAuthoringContext(
             EditorWindow window,
+            string providerId,
             Action<GameContentCreationResult> setResult,
             Func<GameContentCreationResult> getResult,
             Action<GameContentAuthoringValidationResult> setValidation)
         {
             Window = window;
+            ProviderId = string.IsNullOrWhiteSpace(providerId) ? "unknown-provider" : providerId;
             _setResult = setResult;
             _getResult = getResult;
             _setValidation = setValidation;
         }
 
         public EditorWindow Window { get; }
+        public string ProviderId { get; }
         public GUIStyle MutedStyle => DeucarianEditorStyles.MutedLabel;
         public GUIStyle SectionTitleStyle => DeucarianEditorStyles.SectionTitle;
 
         public void DrawSection(string title, Action draw)
         {
-            DeucarianEditorCards.DrawCard(title, draw);
+            DrawSection(title, null, draw, true);
+        }
+
+        public bool DrawSection(string title, string summary, Action draw, bool defaultOpen = true)
+        {
+            string key = DeucarianEditorAccordion.BuildStateKey("game-content-authoring", ProviderId, "section", title);
+            return DeucarianEditorAccordion.DrawFoldoutCard(key, title, summary, draw, defaultOpen);
+        }
+
+        public bool DrawFoldoutCard(
+            string stateKey,
+            string title,
+            string summary,
+            Action draw,
+            bool defaultOpen = true,
+            bool enabled = true,
+            Action drawHeaderActions = null)
+        {
+            return DeucarianEditorAccordion.DrawFoldoutCard(stateKey, title, summary, draw, defaultOpen, enabled, drawHeaderActions);
         }
 
         public void DrawInlineCard(Action draw)
@@ -44,23 +65,58 @@ namespace Deucarian.GameContentAuthoring.Editor
             return DeucarianEditorButtons.Secondary(label, enabled, options);
         }
 
+        public string DrawTextField(string label, string value, string hint = null)
+        {
+            return DeucarianEditorFieldRow.TextField(label, value, hint);
+        }
+
+        public string DrawTextArea(string label, string value, string hint = null)
+        {
+            return DeucarianEditorFieldRow.TextArea(label, value, hint);
+        }
+
+        public int DrawIntField(string label, int value, string hint = null)
+        {
+            return DeucarianEditorFieldRow.IntField(label, value, hint);
+        }
+
+        public float DrawFloatField(string label, float value, string hint = null)
+        {
+            return DeucarianEditorFieldRow.FloatField(label, value, hint);
+        }
+
+        public double DrawDoubleField(string label, double value, string hint = null)
+        {
+            return DeucarianEditorFieldRow.DoubleField(label, value, hint);
+        }
+
+        public bool DrawToggle(string label, bool value, string hint = null)
+        {
+            return DeucarianEditorFieldRow.Toggle(label, value, hint);
+        }
+
+        public T DrawEnumPopup<T>(string label, T value, string hint = null) where T : Enum
+        {
+            return DeucarianEditorFieldRow.EnumPopup(label, value, hint);
+        }
+
+        public T DrawObjectField<T>(string label, T value, bool allowSceneObjects = false, string hint = null)
+            where T : UnityEngine.Object
+        {
+            return DeucarianEditorObjectFieldRow.Draw(label, value, allowSceneObjects, hint);
+        }
+
         public string DrawOutputRootField(string outputRoot)
         {
-            using (new EditorGUILayout.HorizontalScope())
+            DefaultAsset asset = AssetDatabase.LoadAssetAtPath<DefaultAsset>(outputRoot);
+            DefaultAsset next = DrawObjectField("Output Root", asset, false, "Choose the root folder where this authored content will be created.");
+            if (next != asset && next != null)
             {
-                DefaultAsset asset = AssetDatabase.LoadAssetAtPath<DefaultAsset>(outputRoot);
-                DefaultAsset next = (DefaultAsset)EditorGUILayout.ObjectField("Output Root", asset, typeof(DefaultAsset), false);
-                if (next != asset && next != null)
-                {
-                    string path = AssetDatabase.GetAssetPath(next);
-                    if (AssetDatabase.IsValidFolder(path)) outputRoot = path;
-                }
-
-                if (GUILayout.Button(new GUIContent("Ping", "Ping output root"), GUILayout.Width(48f)) && asset != null)
-                    EditorGUIUtility.PingObject(asset);
+                string path = AssetDatabase.GetAssetPath(next);
+                if (AssetDatabase.IsValidFolder(path)) outputRoot = path;
             }
 
-            return EditorGUILayout.TextField("Output Path", outputRoot);
+            return DrawTextField("Output Path", outputRoot, "Final asset folders are created under this path using the stable content ID.");
         }
 
         public void DrawValidation(GameContentAuthoringValidationResult result, string readyMessage)
@@ -139,9 +195,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             DeucarianEditorStatusPanel.DrawStatusCard(result.Message, DeucarianEditorStatus.Success);
             DeucarianEditorCards.DrawInlineCard(() =>
             {
-                EditorGUILayout.ObjectField("Created Root", result.CreatedRoot, typeof(UnityEngine.Object), false);
-                if (DeucarianEditorButtons.Secondary("Ping", result.CreatedRoot != null, GUILayout.Width(72f)) && result.CreatedRoot != null)
-                    EditorGUIUtility.PingObject(result.CreatedRoot);
+                DeucarianEditorObjectFieldRow.Draw("Created Root", result.CreatedRoot, false, "The root asset created by the authoring flow.");
             });
         }
     }
