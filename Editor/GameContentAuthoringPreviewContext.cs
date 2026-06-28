@@ -16,19 +16,38 @@ namespace Deucarian.GameContentAuthoring.Editor
             EditorWindow window,
             IGameContentAuthoringProvider provider,
             Action<string> setStatus = null,
-            Func<string> getStatus = null)
+            Func<string> getStatus = null,
+            GameContentAuthoringPreviewSelection selectedExistingItem = null)
         {
             Window = window;
             Provider = provider;
+            SelectedExistingItem = selectedExistingItem;
             _setStatus = setStatus;
             _getStatus = getStatus;
         }
 
         public EditorWindow Window { get; }
         public IGameContentAuthoringProvider Provider { get; }
+        public GameContentAuthoringPreviewSelection SelectedExistingItem { get; }
+        public bool HasSelectedExistingItem => GetSelectedAsset<UnityEngine.Object>() != null;
         public GUIStyle MutedStyle => DeucarianEditorStyles.MutedLabel;
         public GUIStyle SectionTitleStyle => DeucarianEditorStyles.SectionTitle;
         public string CurrentStatus => _getStatus == null ? string.Empty : _getStatus() ?? string.Empty;
+
+        public T GetSelectedAsset<T>() where T : UnityEngine.Object
+        {
+            if (SelectedExistingItem == null || Provider == null)
+            {
+                return null;
+            }
+
+            if (!string.Equals(SelectedExistingItem.ProviderId, Provider.ProviderId, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return SelectedExistingItem.Asset as T;
+        }
 
         public void SetStatus(string message)
         {
@@ -277,6 +296,32 @@ namespace Deucarian.GameContentAuthoring.Editor
                 return previewMutedValueStyle;
             }
         }
+    }
+
+    public sealed class GameContentAuthoringPreviewSelection
+    {
+        public GameContentAuthoringPreviewSelection(
+            string providerId,
+            string displayName,
+            string stableId,
+            string category,
+            string path,
+            UnityEngine.Object asset)
+        {
+            ProviderId = providerId ?? string.Empty;
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? asset != null ? asset.name : "(unnamed)" : displayName;
+            StableId = stableId ?? string.Empty;
+            Category = category ?? string.Empty;
+            Path = path ?? string.Empty;
+            Asset = asset;
+        }
+
+        public string ProviderId { get; }
+        public string DisplayName { get; }
+        public string StableId { get; }
+        public string Category { get; }
+        public string Path { get; }
+        public UnityEngine.Object Asset { get; }
     }
 
     public readonly struct GameContentAuthoringPreviewRow

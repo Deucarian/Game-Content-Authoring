@@ -43,8 +43,6 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             context.DrawSection("Library", () =>
             {
-                EditorGUILayout.LabelField("Browse authored assets under Assets/GameContent and validate their references as a playable recipe.", context.MutedStyle);
-                GUILayout.Space(DeucarianEditorSpacing.Small);
                 _rootPath = context.DrawTextField("Content Root", _rootPath, "The library scans authored content under this project-relative folder.");
 
                 using (new EditorGUILayout.HorizontalScope())
@@ -90,7 +88,6 @@ namespace Deucarian.GameContentAuthoring.Editor
                     new GameContentAuthoringPreviewRow("ID", string.IsNullOrWhiteSpace(selected.Id) ? "(missing)" : selected.Id),
                     new GameContentAuthoringPreviewRow("Name", selected.DisplayName),
                     new GameContentAuthoringPreviewRow("Type", selected.Category),
-                    new GameContentAuthoringPreviewRow("Path", selected.Path),
                     new GameContentAuthoringPreviewRow("State", selected.ValidationLabel)
                 });
 
@@ -118,7 +115,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             DrawSelectedValidation(context, selected);
             DrawReferenceList(context, "Direct References", selected.DirectReferences, "No authored direct references found.");
             DrawReferenceList(context, "Referenced By", selected.ReverseReferences, "No authored assets reference this asset.");
-            DrawDependencyGraph(context, selected);
+            DrawLibraryAdvanced(context, selected);
 
             if (selected.Kind == GameContentLibraryKind.ContentSet)
             {
@@ -290,7 +287,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 if (selected.Issues.Count == 0)
                 {
-                    DeucarianEditorStatusPanel.DrawStatusCard("No validation issues found for this asset.", DeucarianEditorStatus.Success);
+                    DeucarianEditorStatusBadge.Draw("Ready", DeucarianEditorStatus.Success, GUILayout.Width(72f));
                     return;
                 }
 
@@ -324,8 +321,54 @@ namespace Deucarian.GameContentAuthoring.Editor
                             EditorGUILayout.LabelField(reference.Target.Category, DeucarianEditorStyles.MutedLabel, GUILayout.Width(112f));
                         }
 
-                        EditorGUILayout.LabelField(reference.PropertyPath, context.MutedStyle);
+                        EditorGUILayout.LabelField(string.IsNullOrWhiteSpace(reference.Target.Id) ? reference.Target.ValidationLabel : reference.Target.Id, context.MutedStyle);
                     });
+                }
+            });
+        }
+
+        private static void DrawLibraryAdvanced(GameContentAuthoringPreviewContext context, GameContentLibraryItem selected)
+        {
+            string key = DeucarianEditorAccordion.BuildStateKey("game-content-library", "advanced", selected.Key);
+            bool open = DeucarianEditorAccordion.DrawFoldoutCard(key, "Advanced", "Raw paths and dependency diagnostics.", () =>
+            {
+                context.DrawInlineCard(() =>
+                {
+                    context.DrawSummaryRows(new[]
+                    {
+                        new GameContentAuthoringPreviewRow("Path", selected.Path)
+                    });
+                    if (context.DrawSecondaryButton("Copy Path", !string.IsNullOrWhiteSpace(selected.Path), GUILayout.Width(84f), GUILayout.Height(22f)))
+                        EditorGUIUtility.systemCopyBuffer = selected.Path;
+                });
+
+                DrawReferenceProperties(context, "Direct Property Uses", selected.DirectReferences);
+                DrawReferenceProperties(context, "Referenced By Properties", selected.ReverseReferences);
+                DrawDependencyGraph(context, selected);
+            }, false);
+
+            if (open)
+            {
+                GUILayout.Space(DeucarianEditorSpacing.Tiny);
+            }
+        }
+
+        private static void DrawReferenceProperties(GameContentAuthoringPreviewContext context, string title, IReadOnlyList<GameContentLibraryReference> references)
+        {
+            context.DrawInlineCard(() =>
+            {
+                DeucarianEditorSectionHeader.Draw(title);
+                if (references == null || references.Count == 0)
+                {
+                    EditorGUILayout.LabelField("None", context.MutedStyle);
+                    return;
+                }
+
+                for (int i = 0; i < references.Count; i++)
+                {
+                    GameContentLibraryReference reference = references[i];
+                    if (reference == null || reference.Target == null) continue;
+                    EditorGUILayout.LabelField(reference.Target.DisplayName + " - " + reference.PropertyPath, context.MutedStyle);
                 }
             });
         }
