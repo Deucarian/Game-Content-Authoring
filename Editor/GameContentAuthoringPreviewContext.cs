@@ -34,6 +34,12 @@ namespace Deucarian.GameContentAuthoring.Editor
         public GUIStyle SectionTitleStyle => DeucarianEditorStyles.SectionTitle;
         public string CurrentStatus => _getStatus == null ? string.Empty : _getStatus() ?? string.Empty;
 
+        public void RequestRepaint()
+        {
+            if (Window != null)
+                Window.Repaint();
+        }
+
         public T GetSelectedAsset<T>() where T : UnityEngine.Object
         {
             if (SelectedExistingItem == null || Provider == null)
@@ -119,6 +125,11 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         public void DrawObjectPreview(UnityEngine.Object asset, string title, string emptyText)
         {
+            DrawObjectPreview(asset, title, emptyText, null);
+        }
+
+        public void DrawObjectPreview(UnityEngine.Object asset, string title, string emptyText, GameContentAuthoringObjectPreviewOptions options)
+        {
             DrawInlineCard(() =>
             {
                 EditorGUILayout.LabelField(title ?? "Preview Asset", SectionTitleStyle);
@@ -128,19 +139,11 @@ namespace Deucarian.GameContentAuthoring.Editor
                     return;
                 }
 
-                Texture2D texture = AssetPreview.GetAssetPreview(asset) ?? AssetPreview.GetMiniThumbnail(asset);
-                Rect previewRect = GUILayoutUtility.GetRect(96f, 132f, GUILayout.ExpandWidth(true));
-                DeucarianEditorVisualShell.DrawInsetSurface(
-                    previewRect,
-                    DeucarianEditorTheme.GlassPanelSoft,
-                    DeucarianEditorTheme.BorderSubtle,
-                    7f);
-
-                if (texture != null && Event.current != null && Event.current.type == EventType.Repaint)
-                {
-                    Rect imageRect = FitTexture(previewRect, texture, 10f);
-                    GUI.DrawTexture(imageRect, texture, ScaleMode.ScaleToFit, true);
-                }
+                float previewHeight = options == null ? 184f : Mathf.Max(132f, options.MinimumHeight);
+                Rect previewRect = GUILayoutUtility.GetRect(132f, previewHeight, GUILayout.ExpandWidth(true));
+                GameContentAuthoringObjectPreviewRenderer.Draw(previewRect, asset, options);
+                if (options != null && options.ActionPreview != null && options.ActionPreview.Playing)
+                    RequestRepaint();
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -216,30 +219,6 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GameContentAuthoringValidationReports.BuildSummary(report, readyMessage),
                 messages,
                 status);
-        }
-
-        private static Rect FitTexture(Rect container, Texture texture, float padding)
-        {
-            Rect padded = new Rect(
-                container.x + padding,
-                container.y + padding,
-                Mathf.Max(0f, container.width - padding * 2f),
-                Mathf.Max(0f, container.height - padding * 2f));
-            if (texture == null || texture.width <= 0 || texture.height <= 0)
-            {
-                return padded;
-            }
-
-            float textureAspect = (float)texture.width / texture.height;
-            float rectAspect = padded.width / Mathf.Max(1f, padded.height);
-            if (textureAspect > rectAspect)
-            {
-                float height = padded.width / textureAspect;
-                return new Rect(padded.x, padded.y + (padded.height - height) * 0.5f, padded.width, height);
-            }
-
-            float width = padded.height * textureAspect;
-            return new Rect(padded.x + (padded.width - width) * 0.5f, padded.y, width, padded.height);
         }
 
         private static GUIStyle previewLabelStyle;
