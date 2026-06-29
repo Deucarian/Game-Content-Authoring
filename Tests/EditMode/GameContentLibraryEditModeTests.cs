@@ -377,6 +377,30 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(preview.GetPhaseLabel(11.9d), Is.EqualTo("Status / Expire"));
         }
 
+        [Test]
+        public void ActionPreviewTimeline_AppliesPlaybackSpeed()
+        {
+            var preview = new GameContentAuthoringActionPreview
+            {
+                DurationSeconds = 4f,
+                Playing = true,
+                Loop = false,
+                Speed = 2f,
+                StartTime = 10d
+            };
+
+            Assert.That(preview.GetNormalizedTime(11d), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(preview.GetNormalizedTime(12d), Is.EqualTo(1f).Within(0.001f));
+        }
+
+        [Test]
+        public void OptionalCustomSurface_DoesNotChangeBaseProviderContract()
+        {
+            Assert.That(typeof(IGameContentAuthoringProvider).GetMethods().Any(method => method.Name == "DrawCustomAuthoringSurface"), Is.False);
+            Assert.That(typeof(IGameContentAuthoringSurfaceProvider).IsInterface, Is.True);
+            Assert.That(typeof(IGameContentAuthoringSurfaceProvider).GetMethods().Any(method => method.Name == "DrawCustomAuthoringSurface"), Is.True);
+        }
+
         private GameContentLibraryReport BuildValidContentSet()
         {
             BuildValidContentSetAsset();

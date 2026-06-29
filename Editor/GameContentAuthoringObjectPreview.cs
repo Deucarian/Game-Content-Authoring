@@ -32,6 +32,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         public bool IncludeStatusEffect { get; set; }
         public bool Playing { get; set; }
         public bool Loop { get; set; } = true;
+        public float Speed { get; set; } = 1f;
         public double StartTime { get; set; }
         public float DurationSeconds { get; set; } = 2.4f;
         public float StaticNormalizedTime { get; set; }
@@ -47,6 +48,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
 
             double elapsed = Math.Max(0d, now - StartTime);
+            elapsed *= Mathf.Max(0.01f, Speed);
             if (Loop)
             {
                 return (float)(elapsed % duration / duration);

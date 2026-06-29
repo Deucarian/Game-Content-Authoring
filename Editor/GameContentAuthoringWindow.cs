@@ -103,7 +103,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
 
             GUILayout.FlexibleSpace();
-            if (!layout.Narrow)
+            if (!layout.Narrow && !IsSelectedProviderCustomSurface(providers))
             {
                 EditorGUILayout.LabelField("Installed Providers", DeucarianEditorSidebar.HeadingStyle);
                 if (providers.Count == 0)
@@ -125,6 +125,9 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         private void DrawContentSurface(IReadOnlyList<IGameContentAuthoringProvider> providers, DeucarianEditorResponsiveLayoutState layout)
         {
+            if (TryDrawCustomProviderSurface(providers, layout))
+                return;
+
             if (layout.Wide)
             {
                 using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandHeight(true)))
@@ -146,6 +149,59 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GUILayout.Space(DeucarianEditorSpacing.Small);
                 DrawPreviewSurface(providers, GUILayout.Height(layout.StackedPreviewHeight));
             }
+        }
+
+        private bool TryDrawCustomProviderSurface(IReadOnlyList<IGameContentAuthoringProvider> providers, DeucarianEditorResponsiveLayoutState layout)
+        {
+            if (providers.Count == 0)
+                return false;
+
+            _selectedProvider = Mathf.Clamp(_selectedProvider, 0, providers.Count - 1);
+            IGameContentAuthoringProvider provider = providers[_selectedProvider];
+            var surfaceProvider = provider as IGameContentAuthoringSurfaceProvider;
+            if (surfaceProvider == null)
+                return false;
+
+            Rect rect = EditorGUILayout.BeginVertical(GUIStyle.none, GUILayout.ExpandHeight(true));
+            DeucarianEditorVisualShell.DrawFrostedSurface(rect, DeucarianEditorTheme.GlassPanel, DeucarianEditorTheme.Border);
+            _lastValidation = null;
+
+            var authoringContext = new GameContentAuthoringContext(
+                this,
+                provider.ProviderId,
+                result =>
+                {
+                    _lastResult = result;
+                    if (result != null && result.Succeeded)
+                        RefreshContentLibrary();
+                },
+                () => _lastResult,
+                validation => _lastValidation = validation);
+
+            GameContentLibraryItem selectedItem = GetSelectedExistingItem(provider);
+            var previewContext = new GameContentAuthoringPreviewContext(
+                this,
+                provider,
+                status => _previewStatus = string.IsNullOrWhiteSpace(status) ? "Preview idle" : status,
+                () => _previewStatus,
+                CreatePreviewSelection(provider, selectedItem));
+
+            var surfaceContext = new GameContentAuthoringSurfaceContext(
+                this,
+                provider,
+                layout,
+                GetItemsForProvider(provider),
+                selectedItem,
+                authoringContext,
+                previewContext,
+                RefreshContentLibrary,
+                item => SelectExistingItem(provider, item),
+                () => ClearSelectedExistingItem(provider),
+                Repaint);
+
+            surfaceProvider.DrawCustomAuthoringSurface(surfaceContext);
+            EditorGUILayout.EndVertical();
+            return true;
         }
 
         private void DrawAuthoringSurface(IReadOnlyList<IGameContentAuthoringProvider> providers, params GUILayoutOption[] options)
@@ -522,6 +578,18 @@ namespace Deucarian.GameContentAuthoring.Editor
             Repaint();
         }
 
+        private void ClearSelectedExistingItem(IGameContentAuthoringProvider provider)
+        {
+            if (provider == null) return;
+            if (_selectedExistingItemKeys.Remove(provider.ProviderId))
+            {
+                _previewStatus = "Preview idle";
+                _previewScroll = Vector2.zero;
+                GUI.FocusControl(null);
+                Repaint();
+            }
+        }
+
         private void PruneSelectedExistingItems()
         {
             if (_contentLibraryReport == null || _selectedExistingItemKeys.Count == 0) return;
@@ -567,6 +635,15 @@ namespace Deucarian.GameContentAuthoring.Editor
             if (id.Contains("game-content-set")) return GameContentLibraryKind.ContentSet;
             if (id.Contains("content-pack")) return GameContentLibraryKind.ContentPack;
             return null;
+        }
+
+        private bool IsSelectedProviderCustomSurface(IReadOnlyList<IGameContentAuthoringProvider> providers)
+        {
+            if (providers == null || providers.Count == 0)
+                return false;
+
+            int index = Mathf.Clamp(_selectedProvider, 0, providers.Count - 1);
+            return providers[index] is IGameContentAuthoringSurfaceProvider;
         }
     }
 }
