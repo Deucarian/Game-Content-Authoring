@@ -342,6 +342,41 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(markdown, Does.Contain("## Info"));
         }
 
+        [Test]
+        public void ObjectPreviewUtility_FitsContentInsidePreviewRect()
+        {
+            Rect container = new Rect(0f, 0f, 220f, 120f);
+
+            Rect fitted = GameContentAuthoringObjectPreviewUtility.FitRect(container, new Vector2(512f, 128f), 10f);
+
+            Assert.That(fitted.xMin, Is.GreaterThanOrEqualTo(container.xMin + 10f));
+            Assert.That(fitted.xMax, Is.LessThanOrEqualTo(container.xMax - 10f));
+            Assert.That(fitted.yMin, Is.GreaterThanOrEqualTo(container.yMin + 10f));
+            Assert.That(fitted.yMax, Is.LessThanOrEqualTo(container.yMax - 10f));
+        }
+
+        [Test]
+        public void ActionPreviewTimeline_ClampsAndLabelsPlaybackPhases()
+        {
+            var preview = new GameContentAuthoringActionPreview
+            {
+                Mode = GameContentAuthoringActionPreviewMode.Projectile,
+                DurationSeconds = 2f,
+                Playing = true,
+                Loop = false,
+                StartTime = 10d,
+                IncludeStatusEffect = true
+            };
+
+            Assert.That(preview.GetNormalizedTime(9d), Is.EqualTo(0f));
+            Assert.That(preview.GetNormalizedTime(11d), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(preview.GetNormalizedTime(20d), Is.EqualTo(1f));
+            Assert.That(preview.GetPhaseLabel(10.1d), Is.EqualTo("OnCast"));
+            Assert.That(preview.GetPhaseLabel(11d), Is.EqualTo("Projectile travel"));
+            Assert.That(preview.GetPhaseLabel(11.55d), Is.EqualTo("OnImpact"));
+            Assert.That(preview.GetPhaseLabel(11.9d), Is.EqualTo("Status / Expire"));
+        }
+
         private GameContentLibraryReport BuildValidContentSet()
         {
             BuildValidContentSetAsset();
