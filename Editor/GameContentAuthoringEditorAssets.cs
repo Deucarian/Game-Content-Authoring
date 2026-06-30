@@ -32,6 +32,22 @@ namespace Deucarian.GameContentAuthoring.Editor
             return false;
         }
 
+        public static bool HasDuplicateIdExcept<TAsset>(string id, TAsset excludedAsset, Func<TAsset, string> getId) where TAsset : UnityEngine.Object
+        {
+            if (string.IsNullOrWhiteSpace(id) || getId == null) return false;
+            string[] guids = AssetDatabase.FindAssets("t:" + typeof(TAsset).Name);
+            for (int i = 0; i < guids.Length; i++)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guids[i]);
+                TAsset asset = AssetDatabase.LoadAssetAtPath<TAsset>(path);
+                if (asset == null || asset == excludedAsset) continue;
+                if (string.Equals(getId(asset), id, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
         public static void AddSubAsset(ScriptableObject subAsset, UnityEngine.Object root, string name)
         {
             if (subAsset == null) return;

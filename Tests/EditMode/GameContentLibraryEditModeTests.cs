@@ -49,6 +49,25 @@ namespace Deucarian.GameContentAuthoring.Tests
         }
 
         [Test]
+        public void V3ObjectEditorContext_TracksDirtyAndAcceptedState()
+        {
+            var context = new GameContentAuthoringObjectEditorContext(null, "baseline");
+
+            Assert.That(context.IsDirty, Is.False);
+            Assert.That(context.Key, Is.EqualTo(string.Empty));
+
+            context.Capture("changed", GameContentAuthoringValidationResult.Valid);
+
+            Assert.That(context.IsDirty, Is.True);
+            Assert.That(context.Validation, Is.SameAs(GameContentAuthoringValidationResult.Valid));
+
+            context.Accept("changed", "Saved");
+
+            Assert.That(context.IsDirty, Is.False);
+            Assert.That(context.StatusMessage, Is.EqualTo("Saved"));
+        }
+
+        [Test]
         public void ActionPreviewRoles_BuildCompactViewportLabels()
         {
             var preview = new GameContentAuthoringActionPreview
