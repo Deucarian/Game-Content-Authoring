@@ -49,6 +49,57 @@ namespace Deucarian.GameContentAuthoring.Tests
         }
 
         [Test]
+        public void V3ObjectEditorContext_TracksDirtyAndAcceptedState()
+        {
+            var context = new GameContentAuthoringObjectEditorContext(null, "baseline");
+
+            Assert.That(context.IsDirty, Is.False);
+            Assert.That(context.Key, Is.EqualTo(string.Empty));
+
+            context.Capture("changed", GameContentAuthoringValidationResult.Valid);
+
+            Assert.That(context.IsDirty, Is.True);
+            Assert.That(context.Validation, Is.SameAs(GameContentAuthoringValidationResult.Valid));
+
+            context.Accept("changed", "Saved");
+
+            Assert.That(context.IsDirty, Is.False);
+            Assert.That(context.StatusMessage, Is.EqualTo("Saved"));
+        }
+
+        [Test]
+        public void ActionPreviewRoles_BuildCompactViewportLabels()
+        {
+            var preview = new GameContentAuthoringActionPreview
+            {
+                Label = "Moss Seeker",
+                DeliveryTypeLabel = "Homing Projectile",
+                Playing = false,
+                Loop = true,
+                Muted = true
+            };
+            preview.Roles.Add(new GameContentAuthoringActionPreviewRole("Source", "Tower Source"));
+            preview.Roles.Add(new GameContentAuthoringActionPreviewRole("Projectile", "projectile-moss-seeker"));
+            preview.Roles.Add(new GameContentAuthoringActionPreviewRole("Target", "Target Dummy"));
+
+            string header = GameContentAuthoringObjectPreviewUtility.BuildViewportHeader(preview);
+            GUIContent projectile = GameContentAuthoringObjectPreviewUtility.BuildRoleLabelContent(preview.Roles[1]);
+
+            Assert.That(GameContentAuthoringObjectPreviewUtility.BuildRoleLegend(preview), Is.EqualTo("Source -> Projectile -> Target"));
+            Assert.That(GameContentAuthoringObjectPreviewUtility.IsGamePreview(preview), Is.True);
+            Assert.That(GameContentAuthoringObjectPreviewUtility.RequestsRoleLabels(preview), Is.False);
+            Assert.That(header, Does.Contain("Moss Seeker"));
+            Assert.That(header, Does.Contain("Homing Projectile"));
+            Assert.That(header, Does.Contain("Paused"));
+            Assert.That(header, Does.Contain("Muted"));
+            Assert.That(header, Does.Contain("Loop"));
+            Assert.That(projectile.text, Is.EqualTo("Projectile: projectile-moss-seeker"));
+            preview.RenderMode = GameContentAuthoringActionPreviewRenderMode.Debug;
+            Assert.That(GameContentAuthoringObjectPreviewUtility.RequestsRoleLabels(preview), Is.True);
+            Assert.DoesNotThrow(() => GameContentAuthoringObjectPreviewUtility.BuildRoleLabelContent(preview.Roles[0]));
+        }
+
+        [Test]
         public void Scan_WhenRootMissing_ReturnsInfoWithoutThrowing()
         {
             GameContentLibraryReport report = GameContentLibraryService.Scan("Assets/GameContentMissing_" + Guid.NewGuid().ToString("N"));
@@ -375,6 +426,30 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(preview.GetPhaseLabel(11d), Is.EqualTo("Projectile travel"));
             Assert.That(preview.GetPhaseLabel(11.55d), Is.EqualTo("OnImpact"));
             Assert.That(preview.GetPhaseLabel(11.9d), Is.EqualTo("Status / Expire"));
+        }
+
+        [Test]
+        public void ActionPreviewTimeline_AppliesPlaybackSpeed()
+        {
+            var preview = new GameContentAuthoringActionPreview
+            {
+                DurationSeconds = 4f,
+                Playing = true,
+                Loop = false,
+                Speed = 2f,
+                StartTime = 10d
+            };
+
+            Assert.That(preview.GetNormalizedTime(11d), Is.EqualTo(0.5f).Within(0.001f));
+            Assert.That(preview.GetNormalizedTime(12d), Is.EqualTo(1f).Within(0.001f));
+        }
+
+        [Test]
+        public void OptionalCustomSurface_DoesNotChangeBaseProviderContract()
+        {
+            Assert.That(typeof(IGameContentAuthoringProvider).GetMethods().Any(method => method.Name == "DrawCustomAuthoringSurface"), Is.False);
+            Assert.That(typeof(IGameContentAuthoringSurfaceProvider).IsInterface, Is.True);
+            Assert.That(typeof(IGameContentAuthoringSurfaceProvider).GetMethods().Any(method => method.Name == "DrawCustomAuthoringSurface"), Is.True);
         }
 
         private GameContentLibraryReport BuildValidContentSet()

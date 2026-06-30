@@ -121,7 +121,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         public void DrawValidation(GameContentAuthoringValidationResult result, string readyMessage)
         {
-            _setValidation?.Invoke(result);
+            SetValidation(result);
             if (result == null || result.Issues.Count == 0)
             {
                 DeucarianEditorStatusPanel.DrawStatusCard(readyMessage, DeucarianEditorStatus.Info);
@@ -179,6 +179,11 @@ namespace Deucarian.GameContentAuthoring.Editor
                 Selection.activeObject = result.CreatedRoot;
                 EditorGUIUtility.PingObject(result.CreatedRoot);
             }
+        }
+
+        public void SetValidation(GameContentAuthoringValidationResult result)
+        {
+            _setValidation?.Invoke(result);
         }
 
         public void DrawCreationResult()
