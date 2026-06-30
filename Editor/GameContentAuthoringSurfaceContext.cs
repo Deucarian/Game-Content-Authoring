@@ -17,6 +17,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             IGameContentAuthoringProvider provider,
             DeucarianEditorResponsiveLayoutState layout,
             IReadOnlyList<GameContentLibraryItem> authoredItems,
+            IReadOnlyList<GameContentLibraryItem> allAuthoredItems,
             GameContentLibraryItem selectedItem,
             GameContentAuthoringContext authoring,
             GameContentAuthoringPreviewContext preview,
@@ -29,6 +30,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             Provider = provider;
             Layout = layout;
             AuthoredItems = authoredItems ?? Array.Empty<GameContentLibraryItem>();
+            AllAuthoredItems = allAuthoredItems ?? AuthoredItems;
             SelectedItem = selectedItem;
             Authoring = authoring;
             Preview = preview;
@@ -47,6 +49,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         public IGameContentAuthoringProvider Provider { get; }
         public DeucarianEditorResponsiveLayoutState Layout { get; }
         public IReadOnlyList<GameContentLibraryItem> AuthoredItems { get; }
+        public IReadOnlyList<GameContentLibraryItem> AllAuthoredItems { get; }
         public GameContentLibraryItem SelectedItem { get; }
         public GameContentAuthoringContext Authoring { get; }
         public GameContentAuthoringPreviewContext Preview { get; }

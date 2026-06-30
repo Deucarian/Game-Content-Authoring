@@ -191,6 +191,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 provider,
                 layout,
                 GetItemsForProvider(provider),
+                GetContentLibraryReport().Items,
                 selectedItem,
                 authoringContext,
                 previewContext,

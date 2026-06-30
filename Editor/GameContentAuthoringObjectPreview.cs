@@ -16,6 +16,12 @@ namespace Deucarian.GameContentAuthoring.Editor
         Aura = 4
     }
 
+    public enum GameContentAuthoringActionPreviewRenderMode
+    {
+        Game = 0,
+        Debug = 1
+    }
+
     public sealed class GameContentAuthoringObjectPreviewOptions
     {
         public float MinimumHeight { get; set; } = 184f;
@@ -27,12 +33,17 @@ namespace Deucarian.GameContentAuthoring.Editor
         private readonly List<GameContentAuthoringActionPreviewRole> _roles = new List<GameContentAuthoringActionPreviewRole>();
 
         public UnityEngine.Object PrimaryAsset { get; set; }
+        public GameObject SourcePrefab { get; set; }
         public GameObject ProjectilePrefab { get; set; }
         public GameObject BeamVfxPrefab { get; set; }
+        public GameObject CastVfxPrefab { get; set; }
         public GameObject ImpactVfxPrefab { get; set; }
         public GameObject FireVfxPrefab { get; set; }
+        public GameObject TickVfxPrefab { get; set; }
+        public GameObject ExpireVfxPrefab { get; set; }
         public GameObject TargetPrefab { get; set; }
         public GameContentAuthoringActionPreviewMode Mode { get; set; }
+        public GameContentAuthoringActionPreviewRenderMode RenderMode { get; set; } = GameContentAuthoringActionPreviewRenderMode.Game;
         public bool IncludeStatusEffect { get; set; }
         public bool Playing { get; set; }
         public bool Loop { get; set; } = true;
@@ -42,6 +53,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         public float StaticNormalizedTime { get; set; }
         public string Label { get; set; }
         public string DeliveryTypeLabel { get; set; }
+        public string SourceContextLabel { get; set; }
+        public string TargetContextLabel { get; set; }
         public bool Muted { get; set; }
         public Color AccentColor { get; set; } = new Color(0.12f, 0.78f, 0.86f, 1f);
         public IList<GameContentAuthoringActionPreviewRole> Roles => _roles;
@@ -141,6 +154,19 @@ namespace Deucarian.GameContentAuthoring.Editor
             return string.Join(" -> ", preview.Roles.Select(role => role == null ? string.Empty : role.Role).Where(role => !string.IsNullOrWhiteSpace(role)));
         }
 
+        public static bool IsGamePreview(GameContentAuthoringActionPreview preview)
+        {
+            return preview != null && preview.RenderMode == GameContentAuthoringActionPreviewRenderMode.Game;
+        }
+
+        public static bool RequestsRoleLabels(GameContentAuthoringActionPreview preview)
+        {
+            return preview != null
+                && preview.RenderMode == GameContentAuthoringActionPreviewRenderMode.Debug
+                && preview.Roles != null
+                && preview.Roles.Count > 0;
+        }
+
         public static string BuildViewportHeader(GameContentAuthoringActionPreview preview)
         {
             if (preview == null)
@@ -183,7 +209,16 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             if (actionPreview != null)
             {
-                DrawActionOverlay(rect, actionPreview, EditorApplication.timeSinceStartup);
+                double now = EditorApplication.timeSinceStartup;
+                if (actionPreview.RenderMode == GameContentAuthoringActionPreviewRenderMode.Debug)
+                {
+                    DrawActionOverlay(rect, actionPreview, now);
+                }
+                else if (Event.current != null && Event.current.type == EventType.Repaint)
+                {
+                    if (!TryDrawGameActionPreview(rect, actionPreview, now))
+                        DrawAssetTexture(rect, actionPreview.PrimaryAsset ?? asset);
+                }
             }
         }
 
@@ -284,6 +319,235 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             Rect imageRect = GameContentAuthoringObjectPreviewUtility.FitRect(rect, new Vector2(texture.width, texture.height), 12f);
             GUI.DrawTexture(imageRect, texture, ScaleMode.ScaleToFit, true);
+        }
+
+        private static bool TryDrawGameActionPreview(Rect rect, GameContentAuthoringActionPreview preview, double now)
+        {
+            if (preview == null || rect.width <= 1f || rect.height <= 1f)
+                return false;
+
+            var roots = new List<GameObject>();
+            PreviewRenderUtility utility = null;
+            try
+            {
+                utility = CreatePreviewUtility();
+                float time = preview.GetNormalizedTime(now);
+                float simulatedTime = Mathf.Lerp(0.08f, Mathf.Max(0.12f, preview.DurationSeconds), time);
+                Vector3 sourcePosition = new Vector3(-1.45f, 0f, 0f);
+                Vector3 targetPosition = new Vector3(1.45f, 0f, 0f);
+                Vector3 centerPosition = Vector3.Lerp(sourcePosition, targetPosition, 0.62f);
+                Quaternion facingTarget = Quaternion.LookRotation((targetPosition - sourcePosition).normalized, Vector3.up);
+
+                if (!TryAddPrefab(utility, roots, preview.SourcePrefab, sourcePosition, facingTarget, 0.86f, simulatedTime))
+                    AddPrimitive(utility, roots, PrimitiveType.Cylinder, "Game Preview Origin Emitter", sourcePosition, new Vector3(0.26f, 0.08f, 0.26f), Quaternion.Euler(90f, 0f, 90f));
+
+                if (preview.Mode == GameContentAuthoringActionPreviewMode.Area || preview.Mode == GameContentAuthoringActionPreviewMode.Aura)
+                {
+                    AddTargetInstance(utility, roots, preview.TargetPrefab, centerPosition + new Vector3(-0.35f, 0f, 0.18f), simulatedTime);
+                    AddTargetInstance(utility, roots, preview.TargetPrefab, centerPosition + new Vector3(0.32f, 0f, -0.12f), simulatedTime);
+                }
+                else
+                {
+                    AddTargetInstance(utility, roots, preview.TargetPrefab, targetPosition, simulatedTime);
+                }
+
+                TryAddPrefab(utility, roots, preview.CastVfxPrefab, sourcePosition, Quaternion.identity, 0.72f, simulatedTime);
+                TryAddPrefab(utility, roots, preview.FireVfxPrefab, sourcePosition + new Vector3(0.24f, 0.08f, 0f), Quaternion.identity, 0.72f, simulatedTime);
+
+                if (preview.Mode == GameContentAuthoringActionPreviewMode.Hitscan)
+                {
+                    TryAddPrefab(utility, roots, preview.BeamVfxPrefab, Vector3.Lerp(sourcePosition, targetPosition, 0.5f), facingTarget, 1.12f, simulatedTime);
+                    TryAddPrefab(utility, roots, preview.ImpactVfxPrefab, targetPosition, Quaternion.identity, 0.9f, simulatedTime);
+                }
+                else if (preview.Mode == GameContentAuthoringActionPreviewMode.Area)
+                {
+                    TryAddPrefab(utility, roots, preview.ImpactVfxPrefab, centerPosition, Quaternion.identity, 1.05f, simulatedTime);
+                    TryAddPrefab(utility, roots, preview.TickVfxPrefab, centerPosition + new Vector3(0.18f, 0.04f, -0.08f), Quaternion.identity, 0.82f, simulatedTime);
+                }
+                else if (preview.Mode == GameContentAuthoringActionPreviewMode.Aura)
+                {
+                    TryAddPrefab(utility, roots, preview.TickVfxPrefab ?? preview.ImpactVfxPrefab, centerPosition, Quaternion.identity, 1.05f, simulatedTime);
+                    TryAddPrefab(utility, roots, preview.ExpireVfxPrefab, centerPosition + new Vector3(0.2f, 0.04f, 0.1f), Quaternion.identity, 0.82f, simulatedTime);
+                }
+                else
+                {
+                    float travel = Mathf.Clamp01(Mathf.InverseLerp(0.18f, 0.76f, time));
+                    Vector3 projectilePosition = GetProjectilePosition(sourcePosition, targetPosition, travel);
+                    TryAddPrefab(utility, roots, preview.ProjectilePrefab, projectilePosition, facingTarget, 0.86f, simulatedTime);
+                    TryAddPrefab(utility, roots, preview.ImpactVfxPrefab, targetPosition, Quaternion.identity, 0.82f, simulatedTime);
+                }
+
+                if (roots.Count == 0)
+                    return false;
+
+                Bounds bounds;
+                if (!TryCalculateSceneBounds(roots, out bounds))
+                    return false;
+
+                ConfigurePreviewCamera(utility, bounds);
+                utility.BeginPreview(rect, GUIStyle.none);
+                utility.Render();
+                Texture texture = utility.EndPreview();
+                if (texture == null)
+                    return false;
+
+                GUI.DrawTexture(rect, texture, ScaleMode.StretchToFill, false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                for (int i = 0; i < roots.Count; i++)
+                {
+                    if (roots[i] != null)
+                        UnityEngine.Object.DestroyImmediate(roots[i]);
+                }
+
+                if (utility != null)
+                    utility.Cleanup();
+            }
+        }
+
+        private static PreviewRenderUtility CreatePreviewUtility()
+        {
+            var utility = new PreviewRenderUtility(true);
+            utility.cameraFieldOfView = 27f;
+            utility.camera.clearFlags = CameraClearFlags.Color;
+            utility.camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+            if (utility.lights.Length > 0)
+            {
+                utility.lights[0].intensity = 1.35f;
+                utility.lights[0].transform.rotation = Quaternion.Euler(34f, 32f, 0f);
+            }
+
+            if (utility.lights.Length > 1)
+            {
+                utility.lights[1].intensity = 0.8f;
+                utility.lights[1].transform.rotation = Quaternion.Euler(305f, 210f, 0f);
+            }
+
+            return utility;
+        }
+
+        private static bool TryAddPrefab(
+            PreviewRenderUtility utility,
+            List<GameObject> roots,
+            GameObject prefab,
+            Vector3 position,
+            Quaternion rotation,
+            float scale,
+            float simulatedTime)
+        {
+            if (utility == null || roots == null || prefab == null)
+                return false;
+
+            GameObject clone = UnityEngine.Object.Instantiate(prefab);
+            clone.name = prefab.name + " (Game Preview)";
+            clone.transform.rotation = rotation;
+            clone.transform.localScale = clone.transform.localScale * Mathf.Max(0.01f, scale);
+            clone.SetActive(true);
+            SetPreviewHideFlags(clone);
+            SimulateParticles(clone, simulatedTime);
+
+            Bounds bounds;
+            if (TryCalculateBounds(clone, out bounds))
+                clone.transform.position += position - bounds.center;
+            else
+                clone.transform.position = position;
+
+            roots.Add(clone);
+            utility.AddSingleGO(clone);
+            return true;
+        }
+
+        private static void AddTargetInstance(PreviewRenderUtility utility, List<GameObject> roots, GameObject targetPrefab, Vector3 position, float simulatedTime)
+        {
+            if (!TryAddPrefab(utility, roots, targetPrefab, position, Quaternion.identity, 0.92f, simulatedTime))
+                AddPrimitive(utility, roots, PrimitiveType.Capsule, "Game Preview Target Dummy", position + new Vector3(0f, 0.28f, 0f), new Vector3(0.28f, 0.48f, 0.28f), Quaternion.identity);
+        }
+
+        private static void AddPrimitive(
+            PreviewRenderUtility utility,
+            List<GameObject> roots,
+            PrimitiveType primitiveType,
+            string name,
+            Vector3 position,
+            Vector3 scale,
+            Quaternion rotation)
+        {
+            if (utility == null || roots == null)
+                return;
+
+            GameObject primitive = GameObject.CreatePrimitive(primitiveType);
+            primitive.name = name;
+            primitive.transform.position = position;
+            primitive.transform.rotation = rotation;
+            primitive.transform.localScale = scale;
+            Collider collider = primitive.GetComponent<Collider>();
+            if (collider != null)
+                UnityEngine.Object.DestroyImmediate(collider);
+            SetPreviewHideFlags(primitive);
+            roots.Add(primitive);
+            utility.AddSingleGO(primitive);
+        }
+
+        private static Vector3 GetProjectilePosition(Vector3 source, Vector3 target, float travel)
+        {
+            Vector3 position = Vector3.Lerp(source, target, travel);
+            position.y += Mathf.Sin(travel * Mathf.PI) * 0.36f;
+            return position;
+        }
+
+        private static bool TryCalculateSceneBounds(IReadOnlyList<GameObject> roots, out Bounds bounds)
+        {
+            bounds = new Bounds(Vector3.zero, Vector3.one);
+            bool hasBounds = false;
+            if (roots == null)
+                return false;
+
+            for (int i = 0; i < roots.Count; i++)
+            {
+                GameObject root = roots[i];
+                if (root == null)
+                    continue;
+
+                Bounds rootBounds;
+                if (!TryCalculateBounds(root, out rootBounds))
+                    continue;
+
+                if (!hasBounds)
+                {
+                    bounds = rootBounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(rootBounds);
+                }
+            }
+
+            if (!hasBounds)
+                return false;
+
+            bounds.Expand(0.35f);
+            return true;
+        }
+
+        private static void ConfigurePreviewCamera(PreviewRenderUtility utility, Bounds bounds)
+        {
+            if (utility == null)
+                return;
+
+            float radius = Mathf.Max(0.9f, bounds.extents.magnitude);
+            float distance = Mathf.Max(3.25f, radius / Mathf.Sin(utility.cameraFieldOfView * 0.5f * Mathf.Deg2Rad) * 1.08f);
+            Vector3 focus = bounds.center;
+            utility.camera.transform.position = focus + new Vector3(radius * 0.28f, radius * 0.22f, -distance);
+            utility.camera.transform.rotation = Quaternion.LookRotation(focus - utility.camera.transform.position, Vector3.up);
+            utility.camera.nearClipPlane = 0.01f;
+            utility.camera.farClipPlane = distance + radius * 5f;
         }
 
         private static void DrawActionOverlay(Rect rect, GameContentAuthoringActionPreview preview, double now)

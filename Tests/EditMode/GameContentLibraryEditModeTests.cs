@@ -67,12 +67,16 @@ namespace Deucarian.GameContentAuthoring.Tests
             GUIContent projectile = GameContentAuthoringObjectPreviewUtility.BuildRoleLabelContent(preview.Roles[1]);
 
             Assert.That(GameContentAuthoringObjectPreviewUtility.BuildRoleLegend(preview), Is.EqualTo("Source -> Projectile -> Target"));
+            Assert.That(GameContentAuthoringObjectPreviewUtility.IsGamePreview(preview), Is.True);
+            Assert.That(GameContentAuthoringObjectPreviewUtility.RequestsRoleLabels(preview), Is.False);
             Assert.That(header, Does.Contain("Moss Seeker"));
             Assert.That(header, Does.Contain("Homing Projectile"));
             Assert.That(header, Does.Contain("Paused"));
             Assert.That(header, Does.Contain("Muted"));
             Assert.That(header, Does.Contain("Loop"));
             Assert.That(projectile.text, Is.EqualTo("Projectile: projectile-moss-seeker"));
+            preview.RenderMode = GameContentAuthoringActionPreviewRenderMode.Debug;
+            Assert.That(GameContentAuthoringObjectPreviewUtility.RequestsRoleLabels(preview), Is.True);
             Assert.DoesNotThrow(() => GameContentAuthoringObjectPreviewUtility.BuildRoleLabelContent(preview.Roles[0]));
         }
 
