@@ -49,6 +49,34 @@ namespace Deucarian.GameContentAuthoring.Tests
         }
 
         [Test]
+        public void ActionPreviewRoles_BuildCompactViewportLabels()
+        {
+            var preview = new GameContentAuthoringActionPreview
+            {
+                Label = "Moss Seeker",
+                DeliveryTypeLabel = "Homing Projectile",
+                Playing = false,
+                Loop = true,
+                Muted = true
+            };
+            preview.Roles.Add(new GameContentAuthoringActionPreviewRole("Source", "Tower Source"));
+            preview.Roles.Add(new GameContentAuthoringActionPreviewRole("Projectile", "projectile-moss-seeker"));
+            preview.Roles.Add(new GameContentAuthoringActionPreviewRole("Target", "Target Dummy"));
+
+            string header = GameContentAuthoringObjectPreviewUtility.BuildViewportHeader(preview);
+            GUIContent projectile = GameContentAuthoringObjectPreviewUtility.BuildRoleLabelContent(preview.Roles[1]);
+
+            Assert.That(GameContentAuthoringObjectPreviewUtility.BuildRoleLegend(preview), Is.EqualTo("Source -> Projectile -> Target"));
+            Assert.That(header, Does.Contain("Moss Seeker"));
+            Assert.That(header, Does.Contain("Homing Projectile"));
+            Assert.That(header, Does.Contain("Paused"));
+            Assert.That(header, Does.Contain("Muted"));
+            Assert.That(header, Does.Contain("Loop"));
+            Assert.That(projectile.text, Is.EqualTo("Projectile: projectile-moss-seeker"));
+            Assert.DoesNotThrow(() => GameContentAuthoringObjectPreviewUtility.BuildRoleLabelContent(preview.Roles[0]));
+        }
+
+        [Test]
         public void Scan_WhenRootMissing_ReturnsInfoWithoutThrowing()
         {
             GameContentLibraryReport report = GameContentLibraryService.Scan("Assets/GameContentMissing_" + Guid.NewGuid().ToString("N"));
