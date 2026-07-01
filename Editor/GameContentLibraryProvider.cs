@@ -17,7 +17,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         }
     }
 
-    public sealed class GameContentLibraryProvider : IGameContentAuthoringProvider
+    public sealed class GameContentLibraryProvider : IGameContentAuthoringProvider, IGameContentAuthoringSurfaceProvider
     {
         public const string ContentLibraryProviderId = "com.deucarian.game-content-authoring.content-library";
         public const string DefaultRoot = "Assets/GameContent";
@@ -25,6 +25,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         private string _rootPath = DefaultRoot;
         private GameContentLibraryReport _report;
         private string _selectedKey;
+        private readonly GameContentLibraryV2State _v2State = new GameContentLibraryV2State();
+        private readonly GameContentLibraryProviderV2View _v2View = new GameContentLibraryProviderV2View();
 
         public string ProviderId => ContentLibraryProviderId;
         public string DisplayName => "Content Library";
@@ -35,6 +37,24 @@ namespace Deucarian.GameContentAuthoring.Editor
         public void OnSelected()
         {
             Refresh(false);
+            _v2State.ResetSession();
+        }
+
+        public void DrawCustomAuthoringSurface(GameContentAuthoringSurfaceContext context)
+        {
+            if (_report == null) Refresh(false);
+            context.Authoring.SetValidation(_report.ToValidationResult());
+            _v2View.Draw(
+                context,
+                _report,
+                _v2State,
+                _rootPath,
+                value => _rootPath = value,
+                () =>
+                {
+                    Refresh(true);
+                    context.RefreshLibrary();
+                });
         }
 
         public void Draw(GameContentAuthoringContext context)
@@ -165,6 +185,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         public void StopPreview()
         {
+            _v2State.StopPreview();
         }
 
         private string NormalizedRoot => GameContentAuthoringEditorPaths.NormalizeAssetFolderPath(_rootPath, DefaultRoot);
