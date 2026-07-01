@@ -49,6 +49,118 @@ namespace Deucarian.GameContentAuthoring.Tests
         }
 
         [Test]
+        public void ContentLibraryProvider_UsesV2ManagementSurface()
+        {
+            var provider = new GameContentLibraryProvider();
+
+            Assert.That(provider, Is.InstanceOf<IGameContentAuthoringSurfaceProvider>());
+            Assert.That(GameContentLibraryV2UiContract.MainRowActionLabels, Does.Not.Contain("Select"));
+            Assert.That(GameContentLibraryV2UiContract.MainRowActionLabels, Does.Contain("Ping"));
+            Assert.That(GameContentLibraryV2UiContract.MainRowActionLabels, Does.Contain("Open"));
+            Assert.That(GameContentLibraryV2UiContract.DetailPages, Does.Contain("Dependencies"));
+            Assert.That(GameContentLibraryV2UiContract.DetailPages, Does.Contain("Advanced"));
+        }
+
+        [Test]
+        public void ContentLibraryV2Model_GroupsFiltersAndDashboardUseManagementOrder()
+        {
+            GameContentLibraryReport report = BuildValidContentPack();
+
+            GameContentLibraryV2Dashboard dashboard = GameContentLibraryV2Model.BuildDashboard(report);
+            var groups = GameContentLibraryV2Model.BuildGroups(
+                report,
+                string.Empty,
+                0,
+                GameContentLibraryV2SeverityFilter.All,
+                GameContentLibraryV2ReadinessFilter.All);
+            var contentPackOnly = GameContentLibraryV2Model.BuildGroups(
+                report,
+                "Basic",
+                1,
+                GameContentLibraryV2SeverityFilter.All,
+                GameContentLibraryV2ReadinessFilter.All);
+
+            Assert.That(dashboard.TotalAssets, Is.EqualTo(7));
+            Assert.That(dashboard.ReadyContentPacks, Is.EqualTo(1));
+            Assert.That(dashboard.ReadyContentSets, Is.EqualTo(1));
+            Assert.That(dashboard.Blockers, Is.EqualTo(0));
+            Assert.That(groups[0].Name, Is.EqualTo("Content Packs"));
+            Assert.That(groups[1].Name, Is.EqualTo("Game / Run Content Sets"));
+            Assert.That(groups.Single(group => group.Kind == GameContentLibraryKind.ContentPack).Items.Count, Is.EqualTo(1));
+            Assert.That(contentPackOnly.Sum(group => group.Items.Count), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ContentLibraryV2State_RowClickStyleSelectionUpdatesSelectedItem()
+        {
+            GameContentLibraryReport report = BuildValidContentPack();
+            GameContentLibraryItem contentPack = Find(report, GameContentLibraryKind.ContentPack);
+            GameContentLibraryItem attack = Find(report, GameContentLibraryKind.Attack);
+            var state = new GameContentLibraryV2State();
+
+            state.EnsureSelection(report);
+            Assert.That(state.GetSelected(report), Is.Not.Null);
+
+            state.Select(contentPack);
+            Assert.That(state.GetSelected(report), Is.SameAs(contentPack));
+
+            state.Select(attack);
+            Assert.That(state.GetSelected(report), Is.SameAs(attack));
+        }
+
+        [Test]
+        public void ContentLibraryV2Graph_IncludesPackSetWeaponAttackWaveEnemyAndUpgradeTarget()
+        {
+            GameContentLibraryReport report = BuildValidContentPack();
+            GameContentLibraryItem contentPack = Find(report, GameContentLibraryKind.ContentPack);
+
+            var edges = GameContentLibraryV2Model.BuildGraphEdges(contentPack);
+
+            Assert.That(edges.Any(edge => edge.Relation == "Content Pack -> Content Sets"), Is.True);
+            Assert.That(edges.Any(edge => edge.Relation == "Content Set -> Weapons"), Is.True);
+            Assert.That(edges.Any(edge => edge.Relation == "Weapon -> Attack"), Is.True);
+            Assert.That(edges.Any(edge => edge.Relation == "Content Set -> Waves"), Is.True);
+            Assert.That(edges.Any(edge => edge.Relation == "Wave -> Enemies"), Is.True);
+            Assert.That(edges.Any(edge => edge.Relation == "Content Set -> Upgrades"), Is.True);
+            Assert.That(edges.Any(edge => edge.Relation == "Upgrade -> Target"), Is.True);
+        }
+
+        [Test]
+        public void ContentLibraryV2Graph_DependencyTargetsCanDriveSelection()
+        {
+            GameContentLibraryReport report = BuildValidContentPack();
+            GameContentLibraryItem contentSet = Find(report, GameContentLibraryKind.ContentSet);
+            GameContentLibraryV2GraphEdge weaponEdge = GameContentLibraryV2Model
+                .BuildGraphEdges(contentSet)
+                .First(edge => edge.Relation == "Content Set -> Weapons");
+            var state = new GameContentLibraryV2State();
+
+            state.Select(contentSet);
+            state.Select(weaponEdge.To);
+
+            Assert.That(state.GetSelected(report), Is.SameAs(weaponEdge.To));
+        }
+
+        [Test]
+        public void ContentLibraryV2Model_NoGameContentRootBuildsEmptyManagementState()
+        {
+            GameContentLibraryReport report = GameContentLibraryService.Scan("Assets/GameContentMissing_" + Guid.NewGuid().ToString("N"));
+
+            GameContentLibraryV2Dashboard dashboard = GameContentLibraryV2Model.BuildDashboard(report);
+            var groups = GameContentLibraryV2Model.BuildGroups(
+                report,
+                string.Empty,
+                0,
+                GameContentLibraryV2SeverityFilter.All,
+                GameContentLibraryV2ReadinessFilter.All);
+
+            Assert.That(report.Items, Is.Empty);
+            Assert.That(dashboard.TotalAssets, Is.EqualTo(0));
+            Assert.That(groups.Count, Is.GreaterThanOrEqualTo(7));
+            Assert.That(groups.Sum(group => group.Items.Count), Is.EqualTo(0));
+        }
+
+        [Test]
         public void V3ObjectEditorContext_TracksDirtyAndAcceptedState()
         {
             var context = new GameContentAuthoringObjectEditorContext(null, "baseline");
@@ -280,6 +392,7 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(report.AllIssues.Any(issue => issue.Path == "Weapon.Attack"), Is.True);
             Assert.That(report.AllIssues.Any(issue => issue.Path == "Wave.Enemies"), Is.True);
             Assert.That(report.AllIssues.Any(issue => issue.Path == "ContentSet.StartingWeapon"), Is.True);
+            Assert.That(report.AllIssues.Any(issue => issue.Path == "ContentSet.StartingWeapon" && issue.Message.Contains("Missing Content Set")), Is.True);
             Assert.That(report.ContentSetSummaries.Single().Ready, Is.False);
         }
 

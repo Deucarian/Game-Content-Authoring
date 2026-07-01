@@ -220,7 +220,9 @@ namespace Deucarian.GameContentAuthoring.Editor
                     if (reference == null)
                     {
                         if (iterator.objectReferenceInstanceIDValue != 0)
-                            source.AddIssue(GameContentLibraryIssue.Error(iterator.propertyPath, "Broken object reference on " + serializedTarget.name + "."));
+                            source.AddIssue(GameContentLibraryIssue.Error(
+                                source.DisplayName + "." + iterator.propertyPath,
+                                "Broken object reference on " + source.DisplayName + " (" + serializedTarget.name + ") at " + iterator.propertyPath + "."));
                         continue;
                     }
 
@@ -347,19 +349,19 @@ namespace Deucarian.GameContentAuthoring.Editor
         private static void AddTypeSpecificIssues(GameContentLibraryItem item)
         {
             if (item.Kind == GameContentLibraryKind.Weapon && item.DirectReferences.All(reference => reference.Target.Kind != GameContentLibraryKind.Attack))
-                item.AddIssue(GameContentLibraryIssue.Error("Weapon.Attack", "Weapon does not reference a discovered attack asset."));
+                item.AddIssue(GameContentLibraryIssue.Error("Weapon.Attack", item.DisplayName + " does not reference a discovered attack asset."));
 
             if (item.Kind == GameContentLibraryKind.Wave && item.DirectReferences.All(reference => reference.Target.Kind != GameContentLibraryKind.Enemy))
-                item.AddIssue(GameContentLibraryIssue.Warning("Wave.Enemies", "Wave does not reference any discovered enemy assets."));
+                item.AddIssue(GameContentLibraryIssue.Warning("Wave.Enemies", item.DisplayName + " does not reference any discovered enemy assets."));
 
             if (item.Kind == GameContentLibraryKind.ContentPack)
             {
                 bool hasDefaultContentSet = ReadMemberValue(item.Asset, "DefaultContentSet") != null;
                 if (!hasDefaultContentSet)
-                    item.AddIssue(GameContentLibraryIssue.Error("ContentPack.DefaultContentSet", "Default Game / Run Content Set is missing."));
+                    item.AddIssue(GameContentLibraryIssue.Error("ContentPack.DefaultContentSet", item.DisplayName + " is missing its default Game / Run Content Set."));
 
                 if (CountMemberReferences(item.Asset, "ContentSets", GameContentLibraryKind.ContentSet, item) == 0)
-                    item.AddIssue(GameContentLibraryIssue.Error("ContentPack.ContentSets", "Include at least one discovered Game / Run Content Set."));
+                    item.AddIssue(GameContentLibraryIssue.Error("ContentPack.ContentSets", item.DisplayName + " must include at least one discovered Game / Run Content Set."));
                 return;
             }
 
@@ -367,16 +369,16 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             bool hasStartingWeapon = ReadMemberValue(item.Asset, "StartingWeapon") != null;
             if (!hasStartingWeapon)
-                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.StartingWeapon", "Starting weapon/tower is missing."));
+                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.StartingWeapon", item.DisplayName + " is missing its starting weapon/tower."));
 
             if (CountMemberReferences(item.Asset, "AvailableWeapons", GameContentLibraryKind.Weapon, item) == 0)
-                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.AvailableWeapons", "Available weapon/tower list is empty."));
+                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.AvailableWeapons", item.DisplayName + " has an empty available weapon/tower list."));
             if (CountMemberReferences(item.Asset, "EnemyPool", GameContentLibraryKind.Enemy, item) == 0)
-                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.EnemyPool", "Enemy pool is empty."));
+                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.EnemyPool", item.DisplayName + " has an empty enemy pool."));
             if (CountMemberReferences(item.Asset, "WaveSet", GameContentLibraryKind.Wave, item) == 0)
-                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.WaveSet", "Wave/spawn set list is empty."));
+                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.WaveSet", item.DisplayName + " has an empty wave/spawn set list."));
             if (CountMemberReferences(item.Asset, "UpgradePool", GameContentLibraryKind.Upgrade, item) == 0)
-                item.AddIssue(GameContentLibraryIssue.Warning("ContentSet.UpgradePool", "Upgrade pool is empty. The content set can still be valid, but progression will be limited."));
+                item.AddIssue(GameContentLibraryIssue.Warning("ContentSet.UpgradePool", item.DisplayName + " has an empty upgrade pool. The content set can still be valid, but progression will be limited."));
         }
 
         private static int CountMemberReferences(UnityEngine.Object asset, string memberName, GameContentLibraryKind expectedKind, GameContentLibraryItem item)
