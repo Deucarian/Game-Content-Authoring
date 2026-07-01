@@ -19,6 +19,11 @@
   ],
   "optionalVersionDefinedDependencies": [],
   "allowedDirectDebugCalls": [],
-  "allowedDirectUnityObjectLifetimeCalls": [],
+  "allowedDirectUnityObjectLifetimeCalls": [
+    {
+      "file": "Editor/GameContentAuthoringObjectPreview.cs",
+      "reason": "Editor-only preview rendering creates HideAndDontSave transient clones and colliders that must be destroyed immediately during preview cleanup."
+    }
+  ],
   "expectedSamplesRoot": ""
 }
