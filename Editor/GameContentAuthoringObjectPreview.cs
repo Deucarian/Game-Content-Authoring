@@ -196,6 +196,11 @@ namespace Deucarian.GameContentAuthoring.Editor
 
     internal static class GameContentAuthoringObjectPreviewRenderer
     {
+        private const float MinimumPreviewBoundsAxis = 0.08f;
+        private const float MaximumPreviewBoundsAxis = 8f;
+        private const float MaximumPreviewBoundsCenterDistance = 8f;
+        private static readonly Color PreviewCameraBackground = new Color(0.045f, 0.085f, 0.105f, 1f);
+
         public static void Draw(Rect rect, UnityEngine.Object asset, GameContentAuthoringObjectPreviewOptions options)
         {
             DrawPreviewBackground(rect);
@@ -224,6 +229,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         private static void DrawPreviewBackground(Rect rect)
         {
+            EditorGUI.DrawRect(rect, PreviewCameraBackground);
             DeucarianEditorVisualShell.DrawInsetSurface(
                 rect,
                 DeucarianEditorTheme.GlassPanelSoft,
@@ -258,16 +264,17 @@ namespace Deucarian.GameContentAuthoring.Editor
                 utility = new PreviewRenderUtility(true);
                 utility.cameraFieldOfView = 28f;
                 utility.camera.clearFlags = CameraClearFlags.Color;
-                utility.camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+                utility.camera.backgroundColor = PreviewCameraBackground;
                 if (utility.lights.Length > 0)
                 {
-                    utility.lights[0].intensity = 1.25f;
+                    utility.lights[0].intensity = 1.55f;
                     utility.lights[0].transform.rotation = Quaternion.Euler(35f, 35f, 0f);
                 }
 
                 if (utility.lights.Length > 1)
                 {
-                    utility.lights[1].intensity = 0.7f;
+                    utility.lights[1].intensity = 1f;
+                    utility.lights[1].transform.rotation = Quaternion.Euler(315f, 218f, 0f);
                 }
 
                 utility.AddSingleGO(clone);
@@ -392,6 +399,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     return false;
 
                 GUI.DrawTexture(rect, texture, ScaleMode.StretchToFill, false);
+                DrawGamePreviewGuideOverlay(rect, preview, time);
                 return true;
             }
             catch
@@ -416,16 +424,16 @@ namespace Deucarian.GameContentAuthoring.Editor
             var utility = new PreviewRenderUtility(true);
             utility.cameraFieldOfView = 27f;
             utility.camera.clearFlags = CameraClearFlags.Color;
-            utility.camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+            utility.camera.backgroundColor = PreviewCameraBackground;
             if (utility.lights.Length > 0)
             {
-                utility.lights[0].intensity = 1.35f;
+                utility.lights[0].intensity = 1.65f;
                 utility.lights[0].transform.rotation = Quaternion.Euler(34f, 32f, 0f);
             }
 
             if (utility.lights.Length > 1)
             {
-                utility.lights[1].intensity = 0.8f;
+                utility.lights[1].intensity = 1.05f;
                 utility.lights[1].transform.rotation = Quaternion.Euler(305f, 210f, 0f);
             }
 
@@ -453,10 +461,13 @@ namespace Deucarian.GameContentAuthoring.Editor
             SimulateParticles(clone, simulatedTime);
 
             Bounds bounds;
-            if (TryCalculateBounds(clone, out bounds))
-                clone.transform.position += position - bounds.center;
-            else
-                clone.transform.position = position;
+            if (!TryCalculateBounds(clone, out bounds))
+            {
+                GameContentAuthoringEditorAssets.DestroyTransientObject(clone);
+                return false;
+            }
+
+            clone.transform.position += position - bounds.center;
 
             roots.Add(clone);
             utility.AddSingleGO(clone);
@@ -533,6 +544,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 return false;
 
             bounds.Expand(0.35f);
+            bounds = SanitizePreviewBounds(bounds, Vector3.zero);
             return true;
         }
 
@@ -548,6 +560,42 @@ namespace Deucarian.GameContentAuthoring.Editor
             utility.camera.transform.rotation = Quaternion.LookRotation(focus - utility.camera.transform.position, Vector3.up);
             utility.camera.nearClipPlane = 0.01f;
             utility.camera.farClipPlane = distance + radius * 5f;
+        }
+
+        private static void DrawGamePreviewGuideOverlay(Rect rect, GameContentAuthoringActionPreview preview, float time)
+        {
+            if (preview == null)
+                return;
+
+            Rect lane = new Rect(rect.x + 18f, rect.yMax - 26f, Mathf.Max(1f, rect.width - 36f), 1f);
+            Vector2 source = new Vector2(lane.x, lane.y);
+            Vector2 target = new Vector2(lane.xMax, lane.y);
+            Vector2 center = Vector2.Lerp(source, target, 0.62f);
+            Color accent = preview.AccentColor;
+            Color laneColor = new Color(accent.r, accent.g, accent.b, 0.34f);
+
+            Handles.BeginGUI();
+            Handles.color = laneColor;
+            Handles.DrawAAPolyLine(2f, source, target);
+            DrawSolidDisc(source, 4f, new Color(0.9f, 0.96f, 1f, 0.72f));
+            if (preview.Mode == GameContentAuthoringActionPreviewMode.Hitscan)
+            {
+                Handles.color = new Color(accent.r, accent.g, accent.b, 0.62f);
+                Handles.DrawAAPolyLine(3f, source, target);
+            }
+            else if (preview.Mode == GameContentAuthoringActionPreviewMode.Area || preview.Mode == GameContentAuthoringActionPreviewMode.Aura)
+            {
+                Handles.color = new Color(accent.r, accent.g, accent.b, 0.54f);
+                Handles.DrawWireDisc(center, Vector3.forward, 9f);
+            }
+            else
+            {
+                float travel = Mathf.Clamp01(Mathf.InverseLerp(0.18f, 0.76f, time));
+                DrawSolidDisc(Vector2.Lerp(source, target, travel), 5f, new Color(accent.r, accent.g, accent.b, 0.82f));
+            }
+
+            DrawTargetDummy(target, accent);
+            Handles.EndGUI();
         }
 
         private static void DrawActionOverlay(Rect rect, GameContentAuthoringActionPreview preview, double now)
@@ -832,23 +880,25 @@ namespace Deucarian.GameContentAuthoring.Editor
             for (int i = 0; i < renderers.Length; i++)
             {
                 Renderer renderer = renderers[i];
-                if (renderer == null || !renderer.enabled) continue;
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
+                Bounds candidate = renderer.bounds;
+                if (!IsFinite(candidate.center) || !IsFinite(candidate.size)) continue;
+                candidate = SanitizePreviewBounds(candidate, root.transform.position);
                 if (!hasBounds)
                 {
-                    bounds = renderer.bounds;
+                    bounds = candidate;
                     hasBounds = true;
                 }
                 else
                 {
-                    bounds.Encapsulate(renderer.bounds);
+                    bounds.Encapsulate(candidate);
                 }
             }
 
-            if (!hasBounds || !IsFinite(bounds.center) || !IsFinite(bounds.size))
-            {
-                bounds = new Bounds(root.transform.position, Vector3.one);
-                hasBounds = true;
-            }
+            if (!hasBounds)
+                return false;
+
+            bounds = SanitizePreviewBounds(bounds, root.transform.position);
 
             if (bounds.size.sqrMagnitude < 0.001f)
             {
@@ -856,6 +906,31 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
 
             return hasBounds;
+        }
+
+        private static Bounds SanitizePreviewBounds(Bounds bounds, Vector3 fallbackCenter)
+        {
+            Vector3 center = IsFinite(bounds.center) ? bounds.center : fallbackCenter;
+            Vector3 offset = center - fallbackCenter;
+            if (!IsFinite(offset))
+                offset = Vector3.zero;
+            if (offset.sqrMagnitude > MaximumPreviewBoundsCenterDistance * MaximumPreviewBoundsCenterDistance)
+                offset = Vector3.ClampMagnitude(offset, MaximumPreviewBoundsCenterDistance);
+            center = fallbackCenter + offset;
+
+            Vector3 size = IsFinite(bounds.size) ? bounds.size : Vector3.one;
+            size = new Vector3(
+                SanitizePreviewBoundsAxis(size.x),
+                SanitizePreviewBoundsAxis(size.y),
+                SanitizePreviewBoundsAxis(size.z));
+            return new Bounds(center, size);
+        }
+
+        private static float SanitizePreviewBoundsAxis(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                return 1f;
+            return Mathf.Clamp(Mathf.Abs(value), MinimumPreviewBoundsAxis, MaximumPreviewBoundsAxis);
         }
 
         private static bool IsFinite(Vector3 value)
@@ -867,6 +942,18 @@ namespace Deucarian.GameContentAuthoring.Editor
                 && !float.IsInfinity(value.y)
                 && !float.IsInfinity(value.z);
         }
+
+#if UNITY_INCLUDE_TESTS
+        internal static bool TryCalculateBoundsForTests(GameObject root, out Bounds bounds)
+        {
+            return TryCalculateBounds(root, out bounds);
+        }
+
+        internal static Bounds SanitizePreviewBoundsForTests(Bounds bounds, Vector3 fallbackCenter)
+        {
+            return SanitizePreviewBounds(bounds, fallbackCenter);
+        }
+#endif
 
         private static GUIStyle overlayLabelStyle;
         private static GUIStyle overlayHeaderStyle;

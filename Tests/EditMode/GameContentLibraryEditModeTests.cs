@@ -520,6 +520,55 @@ namespace Deucarian.GameContentAuthoring.Tests
         }
 
         [Test]
+        public void ObjectPreviewUtility_RejectsPrefabsWithoutVisibleRenderers()
+        {
+            var root = new GameObject("empty-preview-root");
+            try
+            {
+                Bounds bounds;
+                Assert.That(GameContentAuthoringObjectPreviewRenderer.TryCalculateBoundsForTests(root, out bounds), Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void ObjectPreviewUtility_SanitizesPathologicalPreviewBounds()
+        {
+            var raw = new Bounds(new Vector3(999f, 0f, 0f), new Vector3(1200f, 0.001f, float.PositiveInfinity));
+
+            Bounds sanitized = GameContentAuthoringObjectPreviewRenderer.SanitizePreviewBoundsForTests(raw, Vector3.zero);
+
+            Assert.That(sanitized.center.magnitude, Is.LessThanOrEqualTo(8.001f));
+            Assert.That(sanitized.size.x, Is.LessThanOrEqualTo(8.001f));
+            Assert.That(sanitized.size.y, Is.GreaterThanOrEqualTo(0.08f));
+            Assert.That(sanitized.size.z, Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void ObjectPreviewUtility_ClampsHugeRenderableBounds()
+        {
+            GameObject root = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            try
+            {
+                root.name = "huge-preview-cube";
+                root.transform.localScale = new Vector3(1000f, 0.001f, 1000f);
+
+                Bounds bounds;
+                Assert.That(GameContentAuthoringObjectPreviewRenderer.TryCalculateBoundsForTests(root, out bounds), Is.True);
+                Assert.That(bounds.size.x, Is.LessThanOrEqualTo(8.001f));
+                Assert.That(bounds.size.y, Is.GreaterThanOrEqualTo(0.08f));
+                Assert.That(bounds.size.z, Is.LessThanOrEqualTo(8.001f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void ActionPreviewTimeline_ClampsAndLabelsPlaybackPhases()
         {
             var preview = new GameContentAuthoringActionPreview
