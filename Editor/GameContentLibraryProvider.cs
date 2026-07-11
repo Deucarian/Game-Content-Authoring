@@ -17,7 +17,11 @@ namespace Deucarian.GameContentAuthoring.Editor
         }
     }
 
-    public sealed class GameContentLibraryProvider : IGameContentAuthoringProvider, IGameContentAuthoringSurfaceProvider
+    public sealed class GameContentLibraryProvider :
+        IGameContentAuthoringProvider,
+        IGameContentAuthoringSurfaceProvider,
+        IGameContentAuthoringLensProvider,
+        IGameContentPackProvider
     {
         public const string ContentLibraryProviderId = "com.deucarian.game-content-authoring.content-library";
         public const string DefaultRoot = "Assets/GameContent";
@@ -27,12 +31,21 @@ namespace Deucarian.GameContentAuthoring.Editor
         private string _selectedKey;
         private readonly GameContentLibraryV2State _v2State = new GameContentLibraryV2State();
         private readonly GameContentLibraryProviderV2View _v2View = new GameContentLibraryProviderV2View();
+        private readonly GameContentAllContentBrowserState _allContentState = new GameContentAllContentBrowserState();
 
         public string ProviderId => ContentLibraryProviderId;
-        public string DisplayName => "Content Library";
-        public string Description => "Browse, inspect, validate, and understand authored game content.";
-        public int SortOrder => 1000;
+        public string DisplayName => "All Content";
+        public string Description => "Browse every record in the selected content-pack context.";
+        public int SortOrder => 10;
         public bool Enabled => true;
+        public GameContentLensDescriptor Lens { get; } = new GameContentLensDescriptor(
+            "all-content",
+            "All Content",
+            "Content Pack",
+            "content-library",
+            10,
+            Array.Empty<GameContentRecordCapability>(),
+            true);
 
         public void OnSelected()
         {
@@ -42,6 +55,12 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         public void DrawCustomAuthoringSurface(GameContentAuthoringSurfaceContext context)
         {
+            if (context.PackContext != null && !context.PackContext.IsProjectContent)
+            {
+                GameContentAllContentBrowser.Draw(context, _allContentState);
+                return;
+            }
+
             if (_report == null) Refresh(false);
             context.Authoring.SetValidation(_report.ToValidationResult());
             _v2View.Draw(
@@ -55,6 +74,55 @@ namespace Deucarian.GameContentAuthoring.Editor
                     Refresh(true);
                     context.RefreshLibrary();
                 });
+        }
+
+        public IReadOnlyList<GameContentPackDescriptor> GetContentPacks()
+        {
+            Refresh(false);
+            return new[] { GameContentProjectPackProjection.BuildPack(ProviderId, _report) };
+        }
+
+        public IReadOnlyList<GameContentRecordDescriptor> GetRecords(string packId)
+        {
+            if (!string.Equals(packId, GameContentProjectPackProjection.PackId, StringComparison.OrdinalIgnoreCase))
+                return Array.Empty<GameContentRecordDescriptor>();
+            if (_report == null) Refresh(false);
+            return GameContentProjectPackProjection.BuildRecords(_report);
+        }
+
+        public GameContentAuthoringValidationResult ValidatePack(string packId)
+        {
+            if (!string.Equals(packId, GameContentProjectPackProjection.PackId, StringComparison.OrdinalIgnoreCase))
+                return new GameContentAuthoringValidationResult(new[]
+                {
+                    GameContentAuthoringValidationIssue.Error("Project Content", "Unknown Project Content pack ID.")
+                });
+            Refresh(false);
+            return _report.ToValidationResult();
+        }
+
+        public GameContentActionResult ExecuteAction(string packId, string actionId)
+        {
+            if (!string.Equals(packId, GameContentProjectPackProjection.PackId, StringComparison.OrdinalIgnoreCase))
+                return GameContentActionResult.Failure("Unknown Project Content pack ID.");
+            if (string.Equals(actionId, "validate-project-content", StringComparison.OrdinalIgnoreCase))
+            {
+                Refresh(false);
+                return _report.BlockerCount == 0
+                    ? GameContentActionResult.Success("Project Content validation passed.", _report.ToValidationResult())
+                    : GameContentActionResult.Failure("Project Content has blocking validation issues.", _report.ToValidationResult());
+            }
+
+            if (string.Equals(actionId, "reveal-project-content", StringComparison.OrdinalIgnoreCase))
+            {
+                UnityEngine.Object root = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(NormalizedRoot);
+                if (root == null) return GameContentActionResult.Failure("Assets/GameContent does not exist yet.");
+                Selection.activeObject = root;
+                EditorGUIUtility.PingObject(root);
+                return GameContentActionResult.Success("Selected Assets/GameContent.");
+            }
+
+            return GameContentActionResult.Failure("Unknown Project Content action '" + actionId + "'.");
         }
 
         public void Draw(GameContentAuthoringContext context)

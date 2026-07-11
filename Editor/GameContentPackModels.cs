@@ -38,7 +38,8 @@ namespace Deucarian.GameContentAuthoring.Editor
     {
         SourceOrder = 0,
         DisplayName = 1,
-        Category = 2
+        Category = 2,
+        Status = 3
     }
 
     public enum GameContentActionKind
@@ -81,7 +82,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             IEnumerable<GameContentCategoryDescriptor> categories,
             IEnumerable<GameContentActionDescriptor> actions,
             GameContentAuthoringValidationResult validation,
-            int recordCount = 0)
+            int recordCount = 0,
+            GameContentPackAccessDescriptor access = null)
         {
             PackId = Normalize(packId);
             OwningPackageId = Normalize(owningPackageId);
@@ -102,6 +104,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             Actions = Copy(actions);
             Validation = validation ?? GameContentAuthoringValidationResult.Valid;
             RecordCount = Math.Max(0, recordCount);
+            Access = access ?? GameContentPackAccessDescriptor.ReadOnlyJson;
         }
 
         public string StableKey => BuildStableKey(OwningPackageId, PackId);
@@ -124,6 +127,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         public IReadOnlyList<GameContentActionDescriptor> Actions { get; }
         public GameContentAuthoringValidationResult Validation { get; }
         public int RecordCount { get; }
+        public GameContentPackAccessDescriptor Access { get; }
         public bool IsAvailable => SourceState == GameContentPackSourceState.Available && Validation.ErrorCount == 0;
 
         public static string BuildStableKey(string owningPackageId, string packId)
@@ -192,7 +196,9 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentAuthoringValidationResult validation,
             int order,
             UnityEngine.Object preview,
-            string iconToken)
+            string iconToken,
+            GameContentRecordKey canonicalKey = null,
+            IEnumerable<GameContentRecordCapability> capabilities = null)
         {
             PackScopedId = Normalize(packScopedId);
             SourceRecordId = Normalize(sourceRecordId);
@@ -211,6 +217,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             Order = order;
             Preview = preview;
             IconToken = Normalize(iconToken);
+            CanonicalKey = canonicalKey ?? GameContentRecordKey.FromLegacy(PackScopedId, SourceRecordId);
+            Capabilities = BuildCapabilities(CategoryIds, capabilities);
         }
 
         public string PackScopedId { get; }
@@ -230,12 +238,113 @@ namespace Deucarian.GameContentAuthoring.Editor
         public int Order { get; }
         public UnityEngine.Object Preview { get; }
         public string IconToken { get; }
+        public GameContentRecordKey CanonicalKey { get; }
+        public IReadOnlyList<GameContentRecordCapability> Capabilities { get; }
         public bool HasBrokenReferences => OutboundReferences.Any(reference => !reference.Valid);
 
         public bool IsInCategory(string categoryId)
         {
             if (string.IsNullOrWhiteSpace(categoryId)) return true;
             return CategoryIds.Any(value => string.Equals(value, categoryId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public bool HasCapability(GameContentRecordCapability capability)
+        {
+            return capability.IsValid && Capabilities.Contains(capability);
+        }
+
+        private static IReadOnlyList<GameContentRecordCapability> BuildCapabilities(
+            IReadOnlyList<string> categoryIds,
+            IEnumerable<GameContentRecordCapability> explicitCapabilities)
+        {
+            var values = explicitCapabilities == null
+                ? new List<GameContentRecordCapability>()
+                : explicitCapabilities.Where(value => value.IsValid).Distinct().ToList();
+            if (values.Count > 0) return values.ToArray();
+
+            foreach (string category in categoryIds ?? Array.Empty<string>())
+            {
+                switch ((category ?? string.Empty).Trim().ToLowerInvariant())
+                {
+                    case "attack":
+                    case "attacks":
+                        AddCapability(values, GameContentRecordCapabilities.Attack);
+                        break;
+                    case "enemy":
+                    case "enemies":
+                        AddCapability(values, GameContentRecordCapabilities.Enemy);
+                        break;
+                    case "wave":
+                    case "waves":
+                        AddCapability(values, GameContentRecordCapabilities.Wave);
+                        AddCapability(values, GameContentRecordCapabilities.Encounter);
+                        break;
+                    case "run-profiles":
+                    case "waves-milestones":
+                        AddCapability(values, GameContentRecordCapabilities.Encounter);
+                        AddCapability(values, GameContentRecordCapabilities.RunProfile);
+                        break;
+                    case "weapon":
+                    case "weapons":
+                        AddCapability(values, GameContentRecordCapabilities.Weapon);
+                        break;
+                    case "projectile":
+                    case "projectiles":
+                        AddCapability(values, GameContentRecordCapabilities.Projectile);
+                        break;
+                    case "upgrade":
+                    case "upgrades":
+                        AddCapability(values, GameContentRecordCapabilities.Upgrade);
+                        break;
+                    case "passives":
+                        AddCapability(values, GameContentRecordCapabilities.Upgrade);
+                        AddCapability(values, GameContentRecordCapabilities.Passive);
+                        break;
+                    case "pickup-magnet":
+                        AddCapability(values, GameContentRecordCapabilities.Upgrade);
+                        AddCapability(values, GameContentRecordCapabilities.PickupMagnet);
+                        break;
+                    case "mutations":
+                        AddCapability(values, GameContentRecordCapabilities.Upgrade);
+                        AddCapability(values, GameContentRecordCapabilities.Mutation);
+                        break;
+                    case "evolutions":
+                        AddCapability(values, GameContentRecordCapabilities.Upgrade);
+                        AddCapability(values, GameContentRecordCapabilities.Evolution);
+                        break;
+                    case "meta-upgrades":
+                        AddCapability(values, GameContentRecordCapabilities.Upgrade);
+                        AddCapability(values, GameContentRecordCapabilities.MetaUpgrade);
+                        break;
+                    case "elites":
+                        AddCapability(values, GameContentRecordCapabilities.Elite);
+                        AddCapability(values, GameContentRecordCapabilities.MajorThreat);
+                        break;
+                    case "minibosses":
+                        AddCapability(values, GameContentRecordCapabilities.Miniboss);
+                        AddCapability(values, GameContentRecordCapabilities.MajorThreat);
+                        break;
+                    case "bosses":
+                        AddCapability(values, GameContentRecordCapabilities.Boss);
+                        AddCapability(values, GameContentRecordCapabilities.MajorThreat);
+                        break;
+                    case "rewards":
+                        AddCapability(values, GameContentRecordCapabilities.Reward);
+                        break;
+                    case "themes":
+                        AddCapability(values, GameContentRecordCapabilities.Theme);
+                        break;
+                }
+            }
+
+            return values.ToArray();
+        }
+
+        private static void AddCapability(
+            ICollection<GameContentRecordCapability> values,
+            GameContentRecordCapability capability)
+        {
+            if (!values.Contains(capability)) values.Add(capability);
         }
 
         private static IReadOnlyList<string> BuildCategoryIds(string primary, IEnumerable<string> categoryIds)
@@ -286,7 +395,9 @@ namespace Deucarian.GameContentAuthoring.Editor
             string targetPackId,
             string relationshipLabel,
             bool required,
-            bool valid)
+            bool valid,
+            string targetOwningPackageId = null,
+            GameContentRecordKey targetRecordKey = null)
         {
             TargetRecordId = Normalize(targetRecordId);
             TargetCategoryId = Normalize(targetCategoryId);
@@ -294,6 +405,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             RelationshipLabel = Normalize(relationshipLabel);
             Required = required;
             Valid = valid;
+            TargetOwningPackageId = Normalize(targetOwningPackageId);
+            TargetRecordKey = targetRecordKey;
         }
 
         public string TargetRecordId { get; }
@@ -302,6 +415,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         public string RelationshipLabel { get; }
         public bool Required { get; }
         public bool Valid { get; }
+        public string TargetOwningPackageId { get; }
+        public GameContentRecordKey TargetRecordKey { get; }
 
         private static string Normalize(string value)
         {
@@ -375,6 +490,38 @@ namespace Deucarian.GameContentAuthoring.Editor
 
     public static class GameContentPackActionDispatcher
     {
+        public static GameContentAuthoringValidationResult Validate(
+            IGameContentPackProvider provider,
+            GameContentPackDescriptor pack)
+        {
+            if (provider == null)
+                return new GameContentAuthoringValidationResult(new[]
+                {
+                    GameContentAuthoringValidationIssue.Error("Content Pack", "Content-pack provider is unavailable.")
+                });
+            if (pack == null)
+                return new GameContentAuthoringValidationResult(new[]
+                {
+                    GameContentAuthoringValidationIssue.Error("Content Pack", "No content pack is selected.")
+                });
+            try
+            {
+                return provider.ValidatePack(pack.PackId) ?? new GameContentAuthoringValidationResult(new[]
+                {
+                    GameContentAuthoringValidationIssue.Error("Content Pack", "The provider returned no validation result.")
+                });
+            }
+            catch (Exception exception)
+            {
+                return new GameContentAuthoringValidationResult(new[]
+                {
+                    GameContentAuthoringValidationIssue.Error(
+                        "Content Pack",
+                        "Content-pack validation failed: " + exception.GetBaseException().Message)
+                });
+            }
+        }
+
         public static GameContentActionResult Execute(
             IGameContentPackProvider provider,
             GameContentPackDescriptor pack,
