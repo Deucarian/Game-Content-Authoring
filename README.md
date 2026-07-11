@@ -17,6 +17,7 @@ Provider packages implement `IGameContentAuthoringProvider` in an Editor assembl
 - Shared asset path, folder, duplicate ID, and overwrite helpers.
 - Shared preview/result/create button UI behavior.
 - Shared preview context helpers for thumbnails, timeline rows, warnings, status text, and preview buttons.
+- Read-only content-pack manifests, discovery, descriptors, provider actions, and browser UI.
 - Installed provider diagnostics list.
 
 ## What This Package Does Not Own
@@ -31,6 +32,16 @@ This package does not contain attack, enemy, wave, tower, upgrade, loot, ability
 4. Draw domain-specific preview content from `DrawPreview(...)`, and release any editor-only preview state from `StopPreview()`.
 5. Register the provider during editor load with `GameContentAuthoringProviderRegistry.Register(...)`.
 6. Keep runtime assemblies free of references to this package.
+
+## Read-Only Content Packs
+
+Providers that expose a named collection of authored records can additionally implement `IGameContentPackProvider`. They continue to register through `GameContentAuthoringProviderRegistry` and can render `GameContentPackBrowser` from the existing `IGameContentAuthoringSurfaceProvider` hook. No second window or registry is involved.
+
+`GameContentPackManifest` is an editor-only discovery asset. It stores generic pack metadata, an optional playable scene and presentation references, and `TextAsset` source references. It must not duplicate domain records. Imported sample manifests are discovered through `AssetDatabase`; duplicate `(owningPackageId, packId)` keys are reported as blocking conflicts rather than resolved silently.
+
+The generic browser consumes `GameContentPackDescriptor`, category and record descriptors, validation results, references, and provider-defined actions. Domain providers remain responsible for parsing their own source format, assigning categories, interpreting references, validating records, and executing actions. This package does not parse domain JSON.
+
+This first content-pack milestone is read-only. It supports discovery, browsing, search, filtering, deterministic sorting, inspection, references, validation, source reveal, and provider actions. JSON editing, write-back, record creation, duplication, deletion, and content-pack cloning require a later transactional authoring contract.
 
 ## Gameplay Foundation Validation Reports
 
