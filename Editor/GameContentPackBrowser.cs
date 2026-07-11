@@ -171,6 +171,11 @@ namespace Deucarian.GameContentAuthoring.Editor
                         .ThenBy(record => record.DisplayName, StringComparer.OrdinalIgnoreCase)
                         .ThenBy(record => record.PackScopedId, StringComparer.OrdinalIgnoreCase);
                     break;
+                case GameContentRecordSortMode.Status:
+                    query = query.OrderBy(GetStatusRank)
+                        .ThenBy(record => record.DisplayName, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(record => record.CanonicalKey.StableKey, StringComparer.OrdinalIgnoreCase);
+                    break;
                 default:
                     query = query.OrderBy(record => record.Order)
                         .ThenBy(record => record.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -181,14 +186,33 @@ namespace Deucarian.GameContentAuthoring.Editor
             return query.ToArray();
         }
 
+        private static int GetStatusRank(GameContentRecordDescriptor record)
+        {
+            if (record == null) return int.MaxValue;
+            if (record.Validation.ErrorCount > 0) return 0;
+            if (record.HasBrokenReferences) return 1;
+            if (record.Validation.WarningCount > 0) return 2;
+            return 3;
+        }
+
         public static GameContentRecordDescriptor ResolveReferenceTarget(
             IEnumerable<GameContentRecordDescriptor> records,
             GameContentRecordReferenceDescriptor reference)
         {
             if (records == null || reference == null || string.IsNullOrWhiteSpace(reference.TargetRecordId)) return null;
+            if (reference.TargetRecordKey != null)
+                return records.FirstOrDefault(record => record.CanonicalKey.Equals(reference.TargetRecordKey));
             return records.FirstOrDefault(record =>
-                string.Equals(record.PackScopedId, reference.TargetRecordId, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(record.SourceRecordId, reference.TargetRecordId, StringComparison.OrdinalIgnoreCase));
+                (string.IsNullOrWhiteSpace(reference.TargetOwningPackageId) || string.Equals(
+                    record.CanonicalKey.OwningPackageId,
+                    reference.TargetOwningPackageId,
+                    StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(reference.TargetPackId) || string.Equals(
+                    record.CanonicalKey.PackId,
+                    reference.TargetPackId,
+                    StringComparison.OrdinalIgnoreCase)) &&
+                (string.Equals(record.PackScopedId, reference.TargetRecordId, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(record.SourceRecordId, reference.TargetRecordId, StringComparison.OrdinalIgnoreCase)));
         }
 
         private static bool MatchesValidation(GameContentRecordDescriptor record, GameContentRecordValidationFilter filter)
@@ -217,7 +241,7 @@ namespace Deucarian.GameContentAuthoring.Editor
     public static class GameContentPackBrowser
     {
         private static readonly string[] ValidationLabels = { "All", "Ready", "Warnings", "Errors", "Broken Refs" };
-        private static readonly string[] SortLabels = { "Source Order", "Name", "Category" };
+        private static readonly string[] SortLabels = { "Source Order", "Name", "Category", "Status" };
 
         public static void Draw(
             GameContentAuthoringSurfaceContext context,

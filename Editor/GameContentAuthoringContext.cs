@@ -18,17 +18,21 @@ namespace Deucarian.GameContentAuthoring.Editor
             string providerId,
             Action<GameContentCreationResult> setResult,
             Func<GameContentCreationResult> getResult,
-            Action<GameContentAuthoringValidationResult> setValidation)
+            Action<GameContentAuthoringValidationResult> setValidation,
+            GameContentPackContext packContext = null)
         {
             Window = window;
             ProviderId = string.IsNullOrWhiteSpace(providerId) ? "unknown-provider" : providerId;
             _setResult = setResult;
             _getResult = getResult;
             _setValidation = setValidation;
+            PackContext = packContext;
         }
 
         public EditorWindow Window { get; }
         public string ProviderId { get; }
+        public GameContentPackContext PackContext { get; }
+        public bool CanCreate => PackContext != null && PackContext.Access.CanCreate;
         public GUIStyle MutedStyle => DeucarianEditorStyles.MutedLabel;
         public GUIStyle SectionTitleStyle => DeucarianEditorStyles.SectionTitle;
 
@@ -164,9 +168,17 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         public bool DrawCreateButton(string label, bool enabled)
         {
+            bool packAllowsCreation = CanCreate;
+            enabled &= packAllowsCreation;
             var content = new GUIContent(
                 label,
-                enabled ? "Create the root asset and linked section assets." : "Fix blocking validation issues before creating this asset.");
+                enabled
+                    ? "Create the root asset and linked section assets in " + PackContext.DisplayName + "."
+                    : !packAllowsCreation
+                        ? PackContext == null
+                            ? "Select a writable content pack before creating content."
+                            : PackContext.Access.DisabledReason
+                        : "Fix blocking validation issues before creating this asset.");
             using (new EditorGUI.DisabledScope(!enabled))
                 return GUILayout.Button(content, enabled ? DeucarianEditorButtons.PrimaryStyle : DeucarianEditorButtons.DisabledStyle, GUILayout.Height(32f));
         }

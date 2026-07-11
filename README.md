@@ -4,7 +4,7 @@ Current package version: 0.1.0
 
 Shared editor shell for Deucarian game content authoring providers.
 
-This package owns the `Tools/Deucarian/Game Content Authoring` window, provider discovery, shared validation display, shared asset path helpers, rich preview panel primitives, and common create-result UI. Gameplay content types remain in their domain packages.
+This package owns the `Tools/Deucarian/Game Content Authoring` window, provider discovery, the selected content-pack context, canonical record identity, lens orchestration, shared validation display, shared asset path helpers, rich preview panel primitives, and common create-result UI. Gameplay content types remain in their domain packages.
 
 Provider packages implement `IGameContentAuthoringProvider` in an Editor assembly and register with `GameContentAuthoringProviderRegistry`.
 
@@ -18,30 +18,42 @@ Provider packages implement `IGameContentAuthoringProvider` in an Editor assembl
 - Shared preview/result/create button UI behavior.
 - Shared preview context helpers for thumbnails, timeline rows, warnings, status text, and preview buttons.
 - Read-only content-pack manifests, discovery, descriptors, provider actions, and browser UI.
+- Persistent per-project-session pack selection, `All Packs`, and the synthetic writable `Project Content` pack.
+- Canonical `(owningPackageId, packId, sourceId, sourceRecordId)` record keys and pack-safe reference resolution.
+- Typed capability and projection-adapter contracts for reusable domain lenses.
+- Unified Pack Dashboard and All Content views with search, capability/source/validation filters, sorting, source reveal, and cross-lens navigation.
 - Installed provider diagnostics list.
 
 ## What This Package Does Not Own
 
 This package does not contain attack, enemy, wave, tower, upgrade, loot, ability, projectile, combat, or template-specific gameplay logic. Provider packages keep their domain data, validation, and asset creation logic in their own editor/runtime assemblies.
 
-## Provider Setup
+## Pack-Aware Provider Setup
 
 1. Add `com.deucarian.game-content-authoring` as a dependency of the provider package.
 2. Reference `Deucarian.GameContentAuthoring.Editor` from the provider package's Editor asmdef only.
-3. Implement `IGameContentAuthoringProvider`.
-4. Draw domain-specific preview content from `DrawPreview(...)`, and release any editor-only preview state from `StopPreview()`.
-5. Register the provider during editor load with `GameContentAuthoringProviderRegistry.Register(...)`.
-6. Keep runtime assemblies free of references to this package.
+3. Implement `IGameContentAuthoringProvider`; implement `IGameContentAuthoringLensProvider` when the provider is a reusable record view.
+4. Describe the lens with a stable ID, group, ordering, and typed `GameContentRecordCapability` values.
+5. Use `GameContentAuthoringSurfaceContext.PackContext` and `PackRecords` rather than maintaining a second content store.
+6. Keep an existing ScriptableObject create/edit surface for `Project Content`, and use immutable projections for read-only external packs.
+7. Register the provider during editor load with `GameContentAuthoringProviderRegistry.Register(...)`.
+8. Keep runtime assemblies free of references to this package.
 
-## Read-Only Content Packs
+## Content Packs And Lenses
 
-Providers that expose a named collection of authored records can additionally implement `IGameContentPackProvider`. They continue to register through `GameContentAuthoringProviderRegistry` and can render `GameContentPackBrowser` from the existing `IGameContentAuthoringSurfaceProvider` hook. No second window or registry is involved.
+All displayed content now has an explicit pack context. Providers that own source discovery implement `IGameContentPackProvider` and continue to register through `GameContentAuthoringProviderRegistry`; no second window or registry is involved. A pack provider owns parsing, validation, source location, and future persistence. A domain package owns its lens fields, preview, and reusable authoring UX.
 
 `GameContentPackManifest` is an editor-only discovery asset. It stores generic pack metadata, an optional playable scene and presentation references, and `TextAsset` source references. It must not duplicate domain records. Imported sample manifests are discovered through `AssetDatabase`; duplicate `(owningPackageId, packId)` keys are reported as blocking conflicts rather than resolved silently.
 
-The generic browser consumes `GameContentPackDescriptor`, category and record descriptors, validation results, references, and provider-defined actions. Domain providers remain responsible for parsing their own source format, assigning categories, interpreting references, validating records, and executing actions. This package does not parse domain JSON.
+The global selector includes discovered packs, `Project Content`, and read-only `All Packs`. Selection uses stable package/pack identity, survives lens switches and assembly reloads through Unity `SessionState`, and never persists an absolute asset path. `Project Content` projects the existing `Assets/GameContent` ScriptableObject scan into the same model while preserving its established create/edit surfaces.
 
-This first content-pack milestone is read-only. It supports discovery, browsing, search, filtering, deterministic sorting, inspection, references, validation, source reveal, and provider actions. JSON editing, write-back, record creation, duplication, deletion, and content-pack cloning require a later transactional authoring contract.
+Records advertise one or more typed capabilities. A single weapon can therefore appear in both Weapon and Attack lenses while retaining one `GameContentRecordKey`. Domain projections use `GameContentRecordProjectionRegistry<TProjection>`; template packages register typed adapters without making domain packages depend on a game template. The generic package deliberately does not parse game-specific JSON.
+
+Creation requires a selected backend whose access descriptor reports `CanCreate`. JSON packs and `All Packs` never expose enabled creation or editing, and a missing pack context is not a valid creation target.
+
+External JSON packs remain read-only. They support discovery, browsing, search, filtering, deterministic sorting, inspection, references, validation, source reveal, and provider actions. JSON editing, write-back, Undo, record creation, duplication, deletion, and content-pack cloning require a later transactional authoring contract with atomic writes and recovery.
+
+See `Documentation~/pack-aware-authoring.md` for the ownership model, registration example, and future-template checklist.
 
 ## Gameplay Foundation Validation Reports
 
