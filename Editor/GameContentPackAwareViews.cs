@@ -589,9 +589,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GameContentRecordLensBrowser.DrawRow("Owner", pack.OwningPackageId);
                 GameContentRecordLensBrowser.DrawRow("Pack ID", pack.PackId);
                 GameContentRecordLensBrowser.DrawRow("Schema", pack.SchemaVersion);
+                GameContentRecordLensBrowser.DrawRow("Source Type", pack.Access.PersistenceLabel);
                 GameContentRecordLensBrowser.DrawRow("Source", pack.SourcePath);
                 GameContentRecordLensBrowser.DrawRow("State", pack.SourceState.ToString());
                 GameContentRecordLensBrowser.DrawRow("Records", packContext.Records.Count.ToString(CultureInfo.InvariantCulture));
+                for (int metadataIndex = 0; metadataIndex < pack.Metadata.Count; metadataIndex++)
+                    GameContentRecordLensBrowser.DrawRow(pack.Metadata[metadataIndex].Label, pack.Metadata[metadataIndex].Value);
 
                 using (new EditorGUILayout.HorizontalScope())
                 {

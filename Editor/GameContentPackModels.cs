@@ -83,7 +83,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             IEnumerable<GameContentActionDescriptor> actions,
             GameContentAuthoringValidationResult validation,
             int recordCount = 0,
-            GameContentPackAccessDescriptor access = null)
+            GameContentPackAccessDescriptor access = null,
+            IEnumerable<GameContentMetadataDescriptor> metadata = null)
         {
             PackId = Normalize(packId);
             OwningPackageId = Normalize(owningPackageId);
@@ -105,6 +106,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             Validation = validation ?? GameContentAuthoringValidationResult.Valid;
             RecordCount = Math.Max(0, recordCount);
             Access = access ?? GameContentPackAccessDescriptor.ReadOnlyJson;
+            Metadata = Copy(metadata);
         }
 
         public string StableKey => BuildStableKey(OwningPackageId, PackId);
@@ -128,6 +130,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         public GameContentAuthoringValidationResult Validation { get; }
         public int RecordCount { get; }
         public GameContentPackAccessDescriptor Access { get; }
+        public IReadOnlyList<GameContentMetadataDescriptor> Metadata { get; }
         public bool IsAvailable => SourceState == GameContentPackSourceState.Available && Validation.ErrorCount == 0;
 
         public static string BuildStableKey(string owningPackageId, string packId)

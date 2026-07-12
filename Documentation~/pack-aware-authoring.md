@@ -12,10 +12,19 @@ A pack provider owns source discovery, parsing or projection, validation, source
 
 - Imported or game-owned JSON packs normally expose read, validate, and reveal-source capabilities. They do not expose editing or record creation in this milestone.
 - `Project Content` is a synthetic pack over the existing `Assets/GameContent` ScriptableObject scan. Existing domain create/edit flows remain available there.
+- Provider-generated named packs may project an existing ScriptableObject graph without creating a `GameContentPackManifest`. The provider remains responsible for discovery, records, validation, and actions.
 - `All Packs` aggregates records for read-only search and comparison.
 - Missing, invalid, and conflicted sources remain inspectable but cannot become writable by accident.
 
 The global selector stores only stable pack identity in Unity `SessionState`. It survives window and assembly rebuilds within the project session without leaking an absolute path or selection into another Unity project.
+
+## Provider-Owned Source Claims
+
+A named pack whose source is already discoverable by `Project Content` implements `IGameContentSourceClaimProvider`. Each `GameContentSourceClaim` identifies an asset file through a stable `GameContentSourceIdentity`; Unity assets use their AssetDatabase GUID rather than an absolute filesystem path.
+
+During catalog construction, claimed source records are removed from the synthetic `Project Content` projection. Their files and Unity ownership are not moved, rewritten, or transferred. Unclaimed ScriptableObjects retain the existing writable Project Content workflow. If the named provider is unavailable or reports a missing source, it contributes no active claims, so otherwise discoverable project records cannot remain hidden by stale ownership state.
+
+Claims are pack-provider data, not a second registry. If two named packs claim the same source identity, GCA reports a source-claim conflict on both packs and Project Content. The conflicted source is excluded from writable Project Content, and GCA does not silently select a claimant. `All Packs` contains one named canonical record for a normal claim instead of a named record plus a synthetic duplicate.
 
 ## Register A Domain Lens
 
@@ -49,7 +58,7 @@ The generic package must not reference the domain package or parse the template'
 
 ## Future Template Checklist
 
-For a future template such as Idle Auto Defense:
+For another game template:
 
 1. Register one or more explicit content packs through the existing provider registry.
 2. Emit immutable record descriptors with canonical owner/pack/source/record keys.
@@ -57,10 +66,10 @@ For a future template such as Idle Auto Defense:
 4. Emit pack-safe outbound and inbound references.
 5. Register typed adapters for the installed domain lenses.
 6. Keep template-specific schemas, fields, balance, scenes, and runtime local.
-7. Reuse Project Content for standalone ScriptableObject workflows.
+7. Reuse Project Content for unclaimed standalone ScriptableObject workflows and claim named-pack sources explicitly.
 8. Do not duplicate a record to make it visible in another lens.
 9. Do not enable create/edit actions unless the selected backend explicitly supports them.
 
 ## Safe-Editing Roadmap
 
-JSON editing is intentionally deferred. A future writable JSON backend needs schema-aware edits, validation-before-commit, source hashes, atomic replacement, backups, Undo/recovery, and explicit create/duplicate/delete semantics. The current capability contract reserves those operations without implying that they are implemented.
+Transactional named-pack editing is intentionally deferred. A future JSON backend needs schema-aware edits, source hashes, atomic replacement, and backups. A ScriptableObject backend needs `SerializedObject`, Unity Undo, reference validation, and AssetDatabase refresh. GCA should coordinate those provider-owned transactions rather than treating JSON and Unity serialization as one writer. The current capability contract reserves write operations without implying that they are implemented.

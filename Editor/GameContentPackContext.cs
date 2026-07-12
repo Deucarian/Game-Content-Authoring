@@ -122,18 +122,54 @@ namespace Deucarian.GameContentAuthoring.Editor
 
     public sealed class GameContentPackCatalog
     {
-        private GameContentPackCatalog(IReadOnlyList<GameContentPackCatalogEntry> entries)
+        private sealed class DiscoveredPack
+        {
+            public DiscoveredPack(
+                GameContentPackDescriptor pack,
+                IGameContentPackProvider provider,
+                IReadOnlyList<GameContentRecordDescriptor> records)
+            {
+                Pack = pack;
+                Provider = provider;
+                Records = records ?? Array.Empty<GameContentRecordDescriptor>();
+            }
+
+            public GameContentPackDescriptor Pack { get; set; }
+            public IGameContentPackProvider Provider { get; }
+            public IReadOnlyList<GameContentRecordDescriptor> Records { get; set; }
+        }
+
+        private sealed class SourceClaimAssignment
+        {
+            public SourceClaimAssignment(GameContentPackDescriptor pack, GameContentSourceClaim claim)
+            {
+                Pack = pack;
+                Claim = claim;
+            }
+
+            public GameContentPackDescriptor Pack { get; }
+            public GameContentSourceClaim Claim { get; }
+        }
+
+        private GameContentPackCatalog(
+            IReadOnlyList<GameContentPackCatalogEntry> entries,
+            IReadOnlyList<GameContentSourceClaimConflict> sourceClaimConflicts,
+            IReadOnlyList<GameContentSourceIdentity> claimedSourceIdentities)
         {
             Entries = entries ?? Array.Empty<GameContentPackCatalogEntry>();
             AllRecords = Entries.SelectMany(entry => entry.Records).ToArray();
+            SourceClaimConflicts = sourceClaimConflicts ?? Array.Empty<GameContentSourceClaimConflict>();
+            ClaimedSourceIdentities = claimedSourceIdentities ?? Array.Empty<GameContentSourceIdentity>();
         }
 
         public IReadOnlyList<GameContentPackCatalogEntry> Entries { get; }
         public IReadOnlyList<GameContentRecordDescriptor> AllRecords { get; }
+        public IReadOnlyList<GameContentSourceClaimConflict> SourceClaimConflicts { get; }
+        public IReadOnlyList<GameContentSourceIdentity> ClaimedSourceIdentities { get; }
 
         public static GameContentPackCatalog Build(IEnumerable<IGameContentAuthoringProvider> providers)
         {
-            var discovered = new List<Tuple<GameContentPackDescriptor, IGameContentPackProvider, IReadOnlyList<GameContentRecordDescriptor>>>();
+            var discovered = new List<DiscoveredPack>();
             if (providers != null)
             {
                 foreach (IGameContentAuthoringProvider authoringProvider in providers.Where(value => value != null))
@@ -146,32 +182,217 @@ namespace Deucarian.GameContentAuthoring.Editor
                         if (pack == null || string.IsNullOrWhiteSpace(pack.StableKey)) continue;
                         IReadOnlyList<GameContentRecordDescriptor> records = packProvider.GetRecords(pack.PackId)
                             ?? Array.Empty<GameContentRecordDescriptor>();
-                        discovered.Add(Tuple.Create(
+                        discovered.Add(new DiscoveredPack(
                             pack,
                             packProvider,
-                            (IReadOnlyList<GameContentRecordDescriptor>)records.Where(value => value != null).ToArray()));
+                            records.Where(value => value != null).ToArray()));
                     }
                 }
             }
 
+            IReadOnlyList<GameContentSourceClaimConflict> claimConflicts = ApplySourceClaims(
+                discovered,
+                out IReadOnlyList<GameContentSourceIdentity> claimedSourceIdentities);
+
             HashSet<string> duplicates = new HashSet<string>(
-                discovered.GroupBy(value => value.Item1.StableKey, StringComparer.OrdinalIgnoreCase)
+                discovered.GroupBy(value => value.Pack.StableKey, StringComparer.OrdinalIgnoreCase)
                     .Where(group => group.Count() > 1)
                     .Select(group => group.Key),
                 StringComparer.OrdinalIgnoreCase);
 
             GameContentPackCatalogEntry[] entries = discovered
                 .Select(value => new GameContentPackCatalogEntry(
-                    value.Item1,
-                    value.Item2,
-                    value.Item3,
-                    duplicates.Contains(value.Item1.StableKey)))
+                    value.Pack,
+                    value.Provider,
+                    value.Records,
+                    duplicates.Contains(value.Pack.StableKey)))
                 .OrderBy(value => value.Pack.SourceKind == GameContentPackSourceKind.Project ? 1 : 0)
                 .ThenBy(value => value.Pack.DisplayName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(value => value.StableKey, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(value => value.Pack.SourcePath, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            return new GameContentPackCatalog(entries);
+            return new GameContentPackCatalog(entries, claimConflicts, claimedSourceIdentities);
+        }
+
+        private static IReadOnlyList<GameContentSourceClaimConflict> ApplySourceClaims(
+            IReadOnlyList<DiscoveredPack> discovered,
+            out IReadOnlyList<GameContentSourceIdentity> claimedSourceIdentities)
+        {
+            var assignments = new List<SourceClaimAssignment>();
+            var providerIssues = new Dictionary<string, List<GameContentAuthoringValidationIssue>>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < discovered.Count; i++)
+            {
+                DiscoveredPack entry = discovered[i];
+                if (IsSyntheticProjectContent(entry.Pack) || !CanContributeClaims(entry.Pack)) continue;
+                if (!(entry.Provider is IGameContentSourceClaimProvider claimProvider)) continue;
+
+                try
+                {
+                    IReadOnlyList<GameContentSourceClaim> claims = claimProvider.GetSourceClaims(entry.Pack.PackId)
+                        ?? Array.Empty<GameContentSourceClaim>();
+                    foreach (GameContentSourceClaim claim in claims.Where(value => value != null && value.IsValid)
+                                 .GroupBy(value => value.SourceIdentity.StableKey, StringComparer.OrdinalIgnoreCase)
+                                 .Select(group => group.First()))
+                        assignments.Add(new SourceClaimAssignment(entry.Pack, claim));
+                }
+                catch (Exception ex)
+                {
+                    AddIssue(providerIssues, entry.Pack.StableKey, GameContentAuthoringValidationIssue.Error(
+                        "Source Claims",
+                        "Content source claims could not be read from provider '" + entry.Pack.ProviderId + "': " + ex.GetBaseException().Message));
+                }
+            }
+
+            GameContentSourceClaimConflict[] conflicts = assignments
+                .GroupBy(value => value.Claim.SourceIdentity.StableKey, StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Select(value => value.Pack.StableKey).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+                .Select(group => new GameContentSourceClaimConflict(
+                    group.First().Claim.SourceIdentity,
+                    group.Select(value => value.Claim.SourcePath).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
+                    group.Select(value => value.Pack.StableKey)))
+                .OrderBy(value => value.SourceIdentity.StableKey, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var claimedIdentities = new HashSet<string>(
+                assignments.Select(value => value.Claim.SourceIdentity.StableKey),
+                StringComparer.OrdinalIgnoreCase);
+            claimedSourceIdentities = assignments
+                .Select(value => value.Claim.SourceIdentity)
+                .Where(value => value != null && value.IsValid)
+                .Distinct()
+                .OrderBy(value => value.StableKey, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var conflictsByPack = conflicts
+                .SelectMany(conflict => conflict.ClaimantPackKeys.Select(packKey => new { packKey, conflict }))
+                .GroupBy(value => value.packKey, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Select(value => value.conflict).ToArray(), StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < discovered.Count; i++)
+            {
+                DiscoveredPack entry = discovered[i];
+                var extraIssues = providerIssues.TryGetValue(entry.Pack.StableKey, out List<GameContentAuthoringValidationIssue> issues)
+                    ? new List<GameContentAuthoringValidationIssue>(issues)
+                    : new List<GameContentAuthoringValidationIssue>();
+                bool hasClaimConflict = conflictsByPack.TryGetValue(entry.Pack.StableKey, out GameContentSourceClaimConflict[] packConflicts);
+                if (hasClaimConflict)
+                {
+                    for (int conflictIndex = 0; conflictIndex < packConflicts.Length; conflictIndex++)
+                        extraIssues.Add(BuildConflictIssue(packConflicts[conflictIndex]));
+                }
+
+                if (IsSyntheticProjectContent(entry.Pack))
+                {
+                    entry.Records = entry.Records.Where(record => !IsClaimed(record, claimedIdentities)).ToArray();
+                    for (int conflictIndex = 0; conflictIndex < conflicts.Length; conflictIndex++)
+                        extraIssues.Add(BuildConflictIssue(conflicts[conflictIndex]));
+                }
+
+                bool syntheticProjectContent = IsSyntheticProjectContent(entry.Pack);
+                if (extraIssues.Count > 0 || syntheticProjectContent || hasClaimConflict)
+                    entry.Pack = RebuildPack(
+                        entry.Pack,
+                        entry.Records,
+                        extraIssues,
+                        hasClaimConflict,
+                        syntheticProjectContent);
+            }
+
+            return conflicts;
+        }
+
+        private static GameContentAuthoringValidationIssue BuildConflictIssue(GameContentSourceClaimConflict conflict)
+        {
+            string location = string.IsNullOrWhiteSpace(conflict.SourcePath)
+                ? conflict.SourceIdentity.StableKey
+                : conflict.SourcePath;
+            return GameContentAuthoringValidationIssue.Error(
+                "Source Claims/" + location,
+                "Source is claimed by multiple named packs: " + string.Join(", ", conflict.ClaimantPackKeys) + ". No claimant was selected.");
+        }
+
+        private static bool IsClaimed(
+            GameContentRecordDescriptor record,
+            ISet<string> claimedIdentities)
+        {
+            return record != null &&
+                   GameContentSourceIdentity.TryCreate(record.SourceAsset, record.SourcePath, out GameContentSourceIdentity identity) &&
+                   claimedIdentities.Contains(identity.StableKey);
+        }
+
+        private static bool CanContributeClaims(GameContentPackDescriptor pack)
+        {
+            if (pack == null) return false;
+            return pack.SourceState != GameContentPackSourceState.MissingSource &&
+                   pack.SourceState != GameContentPackSourceState.ProviderUnavailable &&
+                   pack.SourceState != GameContentPackSourceState.SampleNotImported &&
+                   pack.SourceState != GameContentPackSourceState.InvalidManifest;
+        }
+
+        private static bool IsSyntheticProjectContent(GameContentPackDescriptor pack)
+        {
+            return pack != null &&
+                   string.Equals(pack.OwningPackageId, GameContentProjectPackProjection.OwningPackageId, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(pack.PackId, GameContentProjectPackProjection.PackId, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void AddIssue(
+            IDictionary<string, List<GameContentAuthoringValidationIssue>> issuesByPack,
+            string packKey,
+            GameContentAuthoringValidationIssue issue)
+        {
+            if (!issuesByPack.TryGetValue(packKey, out List<GameContentAuthoringValidationIssue> issues))
+            {
+                issues = new List<GameContentAuthoringValidationIssue>();
+                issuesByPack.Add(packKey, issues);
+            }
+
+            issues.Add(issue);
+        }
+
+        private static GameContentPackDescriptor RebuildPack(
+            GameContentPackDescriptor pack,
+            IReadOnlyList<GameContentRecordDescriptor> records,
+            IEnumerable<GameContentAuthoringValidationIssue> extraIssues,
+            bool sourceClaimConflict,
+            bool validationFollowsProjectedRecords)
+        {
+            GameContentRecordDescriptor[] safeRecords = records == null
+                ? Array.Empty<GameContentRecordDescriptor>()
+                : records.Where(value => value != null).ToArray();
+            GameContentCategoryDescriptor[] categories = pack.Categories.Select(category =>
+                new GameContentCategoryDescriptor(
+                    category.CategoryId,
+                    category.DisplayName,
+                    category.Description,
+                    category.IconOrStyleKey,
+                    category.Order,
+                    safeRecords.Count(record => record.IsInCategory(category.CategoryId)))).ToArray();
+            IEnumerable<GameContentAuthoringValidationIssue> baseIssues = validationFollowsProjectedRecords
+                ? safeRecords.SelectMany(record => record.Validation.Issues)
+                : pack.Validation.Issues;
+            GameContentAuthoringValidationResult validation = new GameContentAuthoringValidationResult(
+                baseIssues.Concat(extraIssues ?? Array.Empty<GameContentAuthoringValidationIssue>()).ToArray());
+            return new GameContentPackDescriptor(
+                pack.PackId,
+                pack.OwningPackageId,
+                pack.ProviderId,
+                pack.DisplayName,
+                pack.Description,
+                pack.SchemaVersion,
+                pack.Tags,
+                pack.SourceKind,
+                sourceClaimConflict ? GameContentPackSourceState.DuplicateConflict : pack.SourceState,
+                pack.SourcePath,
+                pack.Manifest,
+                pack.PlayableScene,
+                pack.Preview,
+                pack.Icon,
+                pack.DefaultTheme,
+                categories,
+                pack.Actions,
+                validation,
+                safeRecords.Length,
+                pack.Access,
+                pack.Metadata);
         }
 
         public GameContentPackCatalogEntry Find(string stableKey)
@@ -209,7 +430,9 @@ namespace Deucarian.GameContentAuthoring.Editor
         public IReadOnlyList<GameContentRecordDescriptor> Records { get; }
         public GameContentPackAccessDescriptor Access { get; }
         public bool IsAllPacks { get; }
-        public bool IsProjectContent => Pack != null && Pack.SourceKind == GameContentPackSourceKind.Project;
+        public bool IsProjectContent => Pack != null &&
+                                        string.Equals(Pack.OwningPackageId, GameContentProjectPackProjection.OwningPackageId, StringComparison.OrdinalIgnoreCase) &&
+                                        string.Equals(Pack.PackId, GameContentProjectPackProjection.PackId, StringComparison.OrdinalIgnoreCase);
         public string SelectionKey => IsAllPacks ? AllPacksSelectionKey : SelectedEntry.StableKey;
         public string DisplayName => IsAllPacks ? "All Packs" : Pack.DisplayName;
         public string SourceStatusLabel

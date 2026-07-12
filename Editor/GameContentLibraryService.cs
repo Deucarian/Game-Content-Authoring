@@ -26,9 +26,21 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         public static GameContentLibraryReport Scan(string rootPath)
         {
+            return Scan(rootPath, null);
+        }
+
+        public static GameContentLibraryReport Scan(
+            string rootPath,
+            IEnumerable<GameContentSourceIdentity> excludedSources)
+        {
             string normalizedRoot = GameContentAuthoringEditorPaths.NormalizeAssetFolderPath(rootPath, GameContentLibraryProvider.DefaultRoot);
             List<GameContentLibraryItem> items = new List<GameContentLibraryItem>();
             List<GameContentLibraryIssue> reportIssues = new List<GameContentLibraryIssue>();
+            var excluded = new HashSet<string>(
+                excludedSources == null
+                    ? Array.Empty<string>()
+                    : excludedSources.Where(value => value != null && value.IsValid).Select(value => value.StableKey),
+                StringComparer.OrdinalIgnoreCase);
 
             if (!GameContentAuthoringEditorPaths.IsValidAssetFolderPath(normalizedRoot, GameContentLibraryProvider.DefaultRoot))
             {
@@ -48,6 +60,10 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             for (int i = 0; i < guids.Length; i++)
             {
+                string sourceKey = new GameContentSourceIdentity(
+                    GameContentSourceIdentity.UnityAssetGuidKind,
+                    guids[i]).StableKey;
+                if (excluded.Contains(sourceKey)) continue;
                 string path = AssetDatabase.GUIDToAssetPath(guids[i]);
                 UnityEngine.Object main = AssetDatabase.LoadMainAssetAtPath(path);
                 if (main == null) continue;
@@ -79,6 +95,16 @@ namespace Deucarian.GameContentAuthoring.Editor
             BuildReferences(items, objectMap);
             ValidateItems(items, reportIssues);
             return BuildReport(normalizedRoot, items, reportIssues);
+        }
+
+        internal static GameContentLibraryReport BuildProjection(
+            string rootPath,
+            IEnumerable<GameContentLibraryItem> items)
+        {
+            return BuildReport(
+                rootPath ?? string.Empty,
+                items == null ? new List<GameContentLibraryItem>() : items.Where(value => value != null).ToList(),
+                new List<GameContentLibraryIssue>());
         }
 
         private static GameContentLibraryReport BuildReport(string rootPath, List<GameContentLibraryItem> items, List<GameContentLibraryIssue> reportIssues)
