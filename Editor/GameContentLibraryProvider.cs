@@ -62,10 +62,13 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
 
             if (_report == null) Refresh(false);
-            context.Authoring.SetValidation(_report.ToValidationResult());
+            GameContentLibraryReport surfaceReport = context.PackContext != null && context.PackContext.IsProjectContent
+                ? GameContentLibraryService.BuildProjection(_report.RootPath, context.AllAuthoredItems)
+                : _report;
+            context.Authoring.SetValidation(surfaceReport.ToValidationResult());
             _v2View.Draw(
                 context,
-                _report,
+                surfaceReport,
                 _v2State,
                 _rootPath,
                 value => _rootPath = value,
@@ -98,7 +101,11 @@ namespace Deucarian.GameContentAuthoring.Editor
                     GameContentAuthoringValidationIssue.Error("Project Content", "Unknown Project Content pack ID.")
                 });
             Refresh(false);
-            return _report.ToValidationResult();
+            GameContentPackCatalog catalog = GameContentPackCatalog.Build(GameContentAuthoringProviderRegistry.Providers);
+            GameContentPackCatalogEntry project = catalog.Find(GameContentPackDescriptor.BuildStableKey(
+                GameContentProjectPackProjection.OwningPackageId,
+                GameContentProjectPackProjection.PackId));
+            return project == null ? _report.ToValidationResult() : project.Pack.Validation;
         }
 
         public GameContentActionResult ExecuteAction(string packId, string actionId)
@@ -107,10 +114,10 @@ namespace Deucarian.GameContentAuthoring.Editor
                 return GameContentActionResult.Failure("Unknown Project Content pack ID.");
             if (string.Equals(actionId, "validate-project-content", StringComparison.OrdinalIgnoreCase))
             {
-                Refresh(false);
-                return _report.BlockerCount == 0
-                    ? GameContentActionResult.Success("Project Content validation passed.", _report.ToValidationResult())
-                    : GameContentActionResult.Failure("Project Content has blocking validation issues.", _report.ToValidationResult());
+                GameContentAuthoringValidationResult validation = ValidatePack(packId);
+                return validation.ErrorCount == 0
+                    ? GameContentActionResult.Success("Project Content validation passed.", validation)
+                    : GameContentActionResult.Failure("Project Content has blocking validation issues.", validation);
             }
 
             if (string.Equals(actionId, "reveal-project-content", StringComparison.OrdinalIgnoreCase))

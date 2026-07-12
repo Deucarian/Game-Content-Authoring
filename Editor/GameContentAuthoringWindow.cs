@@ -608,7 +608,9 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         private void RefreshContentLibrary()
         {
-            _contentLibraryReport = GameContentLibraryService.Scan(GameContentLibraryProvider.DefaultRoot);
+            _contentLibraryReport = GameContentLibraryService.Scan(
+                GameContentLibraryProvider.DefaultRoot,
+                _packCatalog == null ? null : _packCatalog.ClaimedSourceIdentities);
             PruneSelectedExistingItems();
         }
 
@@ -626,9 +628,9 @@ namespace Deucarian.GameContentAuthoring.Editor
             string preferred = _packContext == null
                 ? SessionState.GetString(PackSelectionSessionStateKey, string.Empty)
                 : _packContext.SelectionKey;
-            RefreshContentLibrary();
             _packCatalog = GameContentPackCatalog.Build(GameContentAuthoringProviderRegistry.Providers);
             _packContext = _packSelection.Refresh(_packCatalog, preferred);
+            RefreshContentLibrary();
             if (_recordSelection.SelectedKey != null && _recordSelection.Resolve(_packContext) == null)
                 _recordSelection.Clear();
             SessionState.SetString(PackSelectionSessionStateKey, _packContext.SelectionKey);
