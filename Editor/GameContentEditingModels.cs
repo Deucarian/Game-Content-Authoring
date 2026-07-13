@@ -18,7 +18,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         Integer = 1,
         Number = 2,
         Boolean = 3,
-        Enum = 4
+        Enum = 4,
+        RecordReference = 5
     }
 
     public enum GameContentEditSessionState
@@ -237,13 +238,15 @@ namespace Deucarian.GameContentAuthoring.Editor
             string stringValue,
             long integerValue,
             double numberValue,
-            bool booleanValue)
+            bool booleanValue,
+            GameContentRecordReferenceValue recordReferenceValue)
         {
             FieldType = fieldType;
             StringValue = stringValue ?? string.Empty;
             IntegerValue = integerValue;
             NumberValue = numberValue;
             BooleanValue = booleanValue;
+            RecordReferenceValue = recordReferenceValue;
         }
 
         public GameContentFieldType FieldType { get; }
@@ -251,30 +254,43 @@ namespace Deucarian.GameContentAuthoring.Editor
         public long IntegerValue { get; }
         public double NumberValue { get; }
         public bool BooleanValue { get; }
+        public GameContentRecordReferenceValue RecordReferenceValue { get; }
 
         public static GameContentFieldValue FromString(string value)
         {
-            return new GameContentFieldValue(GameContentFieldType.String, value, 0L, 0d, false);
+            return new GameContentFieldValue(GameContentFieldType.String, value, 0L, 0d, false, null);
         }
 
         public static GameContentFieldValue FromInteger(long value)
         {
-            return new GameContentFieldValue(GameContentFieldType.Integer, string.Empty, value, 0d, false);
+            return new GameContentFieldValue(GameContentFieldType.Integer, string.Empty, value, 0d, false, null);
         }
 
         public static GameContentFieldValue FromNumber(double value)
         {
-            return new GameContentFieldValue(GameContentFieldType.Number, string.Empty, 0L, value, false);
+            return new GameContentFieldValue(GameContentFieldType.Number, string.Empty, 0L, value, false, null);
         }
 
         public static GameContentFieldValue FromBoolean(bool value)
         {
-            return new GameContentFieldValue(GameContentFieldType.Boolean, string.Empty, 0L, 0d, value);
+            return new GameContentFieldValue(GameContentFieldType.Boolean, string.Empty, 0L, 0d, value, null);
         }
 
         public static GameContentFieldValue FromEnum(string token)
         {
-            return new GameContentFieldValue(GameContentFieldType.Enum, token, 0L, 0d, false);
+            return new GameContentFieldValue(GameContentFieldType.Enum, token, 0L, 0d, false, null);
+        }
+
+        public static GameContentFieldValue FromRecordReference(GameContentRecordReferenceValue value)
+        {
+            if (value == null) throw new ArgumentNullException(nameof(value));
+            return new GameContentFieldValue(
+                GameContentFieldType.RecordReference,
+                string.Empty,
+                0L,
+                0d,
+                false,
+                value);
         }
 
         public string ToDisplayString()
@@ -287,6 +303,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                     return NumberValue.ToString("R", CultureInfo.InvariantCulture);
                 case GameContentFieldType.Boolean:
                     return BooleanValue ? "True" : "False";
+                case GameContentFieldType.RecordReference:
+                    return RecordReferenceValue == null ? string.Empty : RecordReferenceValue.ToDisplayString();
                 default:
                     return StringValue;
             }
@@ -303,6 +321,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                     return NumberValue.Equals(other.NumberValue);
                 case GameContentFieldType.Boolean:
                     return BooleanValue == other.BooleanValue;
+                case GameContentFieldType.RecordReference:
+                    return Equals(RecordReferenceValue, other.RecordReferenceValue);
                 default:
                     return string.Equals(StringValue, other.StringValue, StringComparison.Ordinal);
             }
@@ -326,6 +346,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                         return (hash * 397) ^ NumberValue.GetHashCode();
                     case GameContentFieldType.Boolean:
                         return (hash * 397) ^ BooleanValue.GetHashCode();
+                    case GameContentFieldType.RecordReference:
+                        return (hash * 397) ^ (RecordReferenceValue == null ? 0 : RecordReferenceValue.GetHashCode());
                     default:
                         return (hash * 397) ^ StringComparer.Ordinal.GetHashCode(StringValue);
                 }
@@ -367,7 +389,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             double? maximumNumber = null,
             int? minimumLength = null,
             int? maximumLength = null,
-            IEnumerable<GameContentEnumOption> enumOptions = null)
+            IEnumerable<GameContentEnumOption> enumOptions = null,
+            GameContentRecordReferenceFieldDescriptor recordReference = null)
         {
             FieldId = Normalize(fieldId);
             SemanticId = Normalize(semanticId);
@@ -386,6 +409,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             EnumOptions = enumOptions == null
                 ? Array.Empty<GameContentEnumOption>()
                 : enumOptions.Where(value => value != null && !string.IsNullOrWhiteSpace(value.Token)).ToArray();
+            RecordReference = recordReference;
         }
 
         public string FieldId { get; }
@@ -403,7 +427,11 @@ namespace Deucarian.GameContentAuthoring.Editor
         public int? MinimumLength { get; }
         public int? MaximumLength { get; }
         public IReadOnlyList<GameContentEnumOption> EnumOptions { get; }
-        public bool IsValid => !string.IsNullOrWhiteSpace(FieldId);
+        public GameContentRecordReferenceFieldDescriptor RecordReference { get; }
+        public bool IsValid => !string.IsNullOrWhiteSpace(FieldId) &&
+                               (FieldType == GameContentFieldType.RecordReference
+                                   ? RecordReference != null && RecordReference.IsValid
+                                   : RecordReference == null);
 
         public bool Accepts(GameContentFieldValue value, out string reason)
         {
@@ -417,6 +445,45 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 reason = "The proposed value does not match the field type.";
                 return false;
+            }
+
+            if (FieldType == GameContentFieldType.RecordReference)
+            {
+                GameContentRecordReferenceValue reference = value.RecordReferenceValue;
+                if (RecordReference == null || reference == null)
+                {
+                    reason = "The record-reference field has no valid reference metadata or value.";
+                    return false;
+                }
+
+                if (reference.IsNone)
+                {
+                    if (Required || !RecordReference.AllowClear)
+                    {
+                        reason = "A record reference is required.";
+                        return false;
+                    }
+
+                    reason = string.Empty;
+                    return true;
+                }
+
+                if (reference.IsBroken)
+                {
+                    reason = string.IsNullOrWhiteSpace(reference.BrokenReason)
+                        ? "The current record reference is broken. Select a valid target before committing."
+                        : reference.BrokenReason;
+                    return false;
+                }
+
+                if (!reference.IsResolved || reference.TargetKey == null || !reference.TargetKey.IsValid)
+                {
+                    reason = "The record reference has no valid canonical target key.";
+                    return false;
+                }
+
+                reason = string.Empty;
+                return true;
             }
 
             if (FieldType == GameContentFieldType.String || FieldType == GameContentFieldType.Enum)

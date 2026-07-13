@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added canonical one-to-one `RecordReference` editing with None/Resolved/Broken values, same-pack capability-filtered selection, optional provider evaluation, target revalidation, inbound-impact review, and scalar-backend compatibility.
 - Added optional provider-owned named-pack edit transactions with scalar field models, source locking, lifecycle/validation coordination, change review, stale/conflict/recovery handling, and an EditMode-only in-memory proof backend. Production packs remain read-only.
 - Added one shared content-pack context with per-session selection, All Packs browsing, explicit backend capabilities, pack-safe canonical record identity, and a writable Project Content compatibility pack.
 - Added reusable capability-driven lens discovery, immutable typed projection adapters, Pack Dashboard, unified All Content browsing, shared record selection, cross-lens navigation, source/status presentation, and guarded validation.
