@@ -4,7 +4,7 @@ Current package version: 0.1.0
 
 Shared editor shell for Deucarian game content authoring providers.
 
-This package owns the `Tools/Deucarian/Game Content Authoring` window, provider discovery, the selected content-pack context, canonical record identity, lens orchestration, shared validation display, shared asset path helpers, rich preview panel primitives, and common create-result UI. Gameplay content types remain in their domain packages.
+This package owns the `Tools/Deucarian/Game Content Authoring` window, provider discovery, the selected content-pack context, canonical record identity, lens orchestration, shared validation display, provider-owned edit-session orchestration, shared asset path helpers, rich preview panel primitives, and common create-result UI. Gameplay content types remain in their domain packages.
 
 Provider packages implement `IGameContentAuthoringProvider` in an Editor assembly and register with `GameContentAuthoringProviderRegistry`.
 
@@ -22,6 +22,7 @@ Provider packages implement `IGameContentAuthoringProvider` in an Editor assembl
 - Canonical `(owningPackageId, packId, sourceId, sourceRecordId)` record keys and pack-safe reference resolution.
 - Typed capability and projection-adapter contracts for reusable domain lenses.
 - Unified Pack Dashboard and All Content views with search, capability/source/validation filters, sorting, source reveal, and cross-lens navigation.
+- Optional named-pack edit-provider contracts, one-session-per-source locking, scalar edit controls, change review, validation gating, and recovery presentation.
 - Installed provider diagnostics list.
 
 ## What This Package Does Not Own
@@ -35,7 +36,7 @@ This package does not contain attack, enemy, wave, tower, upgrade, loot, ability
 3. Implement `IGameContentAuthoringProvider`; implement `IGameContentAuthoringLensProvider` when the provider is a reusable record view.
 4. Describe the lens with a stable ID, group, ordering, and typed `GameContentRecordCapability` values.
 5. Use `GameContentAuthoringSurfaceContext.PackContext` and `PackRecords` rather than maintaining a second content store.
-6. Keep an existing ScriptableObject create/edit surface for `Project Content`, and use immutable projections for read-only external packs.
+6. Keep an existing ScriptableObject create/edit surface for `Project Content`. A named pack may additionally implement `IGameContentPackEditProvider` when it owns a safe transaction backend.
 7. Register the provider during editor load with `GameContentAuthoringProviderRegistry.Register(...)`.
 8. Keep runtime assemblies free of references to this package.
 
@@ -49,9 +50,21 @@ The global selector includes discovered packs, `Project Content`, and read-only 
 
 Records advertise one or more typed capabilities. A single weapon can therefore appear in both Weapon and Attack lenses while retaining one `GameContentRecordKey`. Domain projections use `GameContentRecordProjectionRegistry<TProjection>`; template packages register typed adapters without making domain packages depend on a game template. The generic package deliberately does not parse game-specific JSON.
 
-Creation requires a selected backend whose access descriptor reports `CanCreate`. JSON packs and `All Packs` never expose enabled creation or editing, and a missing pack context is not a valid creation target.
+Creation requires a selected backend whose access descriptor reports `CanCreate`. Current JSON packs and `All Packs` do not expose enabled creation or editing, and a missing pack context is not a valid creation target.
 
-External JSON packs remain read-only. They support discovery, browsing, search, filtering, deterministic sorting, inspection, references, validation, source reveal, and provider actions. JSON editing, write-back, Undo, record creation, duplication, deletion, and content-pack cloning require a later transactional authoring contract with atomic writes and recovery.
+Production named packs remain read-only. They support discovery, browsing, search, filtering, deterministic sorting, inspection, references, validation, source reveal, and provider actions. This package now supplies the transaction foundation, but no Survivors JSON or Idle Auto Defense ScriptableObject persistence backend is included yet.
+
+## Safe Named-Pack Editing Foundation
+
+Named-pack providers opt in through `IGameContentPackEditProvider`; the existing provider instance and provider ID remain the backend identity. GCA coordinates lifecycle, source locking, typed scalar controls, change review, exception containment, stale/conflict display, commit/cancel/rollback actions, and refresh notifications. The provider maps records to sources and owns snapshots, revisions, field exposure, validation, persistence, rollback, recovery, and reindexing. GCA never serializes domain content.
+
+Milestone 2A supports provider-approved string, integer, floating-point, boolean, and enum-token fields. Stable IDs, pack/source/canonical IDs, record and asset references, Unity object references, collections, structural changes, and computed values remain read-only. Invalid staged values may be reviewed but errors block commit; warnings require explicit confirmation.
+
+One active transaction owns a physical source lock. The same canonical record reached through another compatible lens attaches to that session, while a different record sharing the source is blocked until the first session finishes. `All Packs` is always read-only. Existing `Project Content` scanning, creation, and provider-specific ScriptableObject editors are unchanged and do not route through this coordinator.
+
+Uncommitted sessions are rolled back and discarded when the window closes or assemblies reload; sessions never auto-commit. A provider-reported or exception-generated `RecoveryRequired` state stays locked for explicit review while the session is active, and the provider owns any durable recovery record. Future production backends must enforce project-owned source roots and reject writes to package sources, `PackageCache`, `Samples~`, `Library`, `Temp`, traversal targets, and symlink or reparse-point escapes.
+
+The next milestones are limited Survivors JSON editing with atomic write/backup behavior (2B), limited Idle Auto Defense ScriptableObject editing with Unity Undo (2C), complex fields and canonical references (2D), then later create, duplicate, delete, and pack cloning workflows.
 
 See `Documentation~/pack-aware-authoring.md` for the ownership model, registration example, and future-template checklist.
 

@@ -25,6 +25,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         private readonly GameContentRecordSelectionState _recordSelection = new GameContentRecordSelectionState();
         private GameContentPackCatalog _packCatalog;
         private GameContentPackContext _packContext;
+        private GameContentEditSessionCoordinator _editSessions;
 
         [MenuItem(MenuPath)]
         public static void Open()
@@ -41,6 +42,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             DeucarianEditorWindowChrome.DrawImGuiWindowBackground(new Rect(0f, 0f, position.width, position.height));
 
+            EnsureEditCoordinator();
             EnsurePackContext();
             IReadOnlyList<IGameContentAuthoringProvider> providers = GameContentAuthoringProviderRegistry.VisibleProviders;
             DeucarianEditorResponsiveLayoutState layout = DeucarianEditorResponsiveLayout.Calculate(position.width, position.height);
@@ -61,9 +63,20 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
         }
 
+        private void OnEnable()
+        {
+            EnsureEditCoordinator();
+        }
+
         private void OnDisable()
         {
             StopSelectedProvider();
+            if (_editSessions != null)
+            {
+                _editSessions.RefreshRequested -= OnEditSessionRefreshRequested;
+                _editSessions.Reset();
+                _editSessions = null;
+            }
         }
 
         private void DrawHeader(int providerCount, DeucarianEditorResponsiveLayoutState layout)
@@ -244,6 +257,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 _packContext,
                 GameContentAuthoringProviderRegistry.Lenses,
                 selectedRecord,
+                _editSessions,
                 RefreshAuthoringData,
                 item => SelectExistingItem(provider, item),
                 () => ClearSelectedExistingItem(provider),
@@ -623,6 +637,19 @@ namespace Deucarian.GameContentAuthoring.Editor
             SessionState.SetString(PackSelectionSessionStateKey, _packContext.SelectionKey);
         }
 
+        private void EnsureEditCoordinator()
+        {
+            if (_editSessions != null) return;
+            _editSessions = GameContentEditSessionCoordinator.Shared;
+            _editSessions.RefreshRequested -= OnEditSessionRefreshRequested;
+            _editSessions.RefreshRequested += OnEditSessionRefreshRequested;
+        }
+
+        private void OnEditSessionRefreshRequested()
+        {
+            RefreshAuthoringData();
+        }
+
         private void RefreshAuthoringData()
         {
             string preferred = _packContext == null
@@ -630,6 +657,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 : _packContext.SelectionKey;
             _packCatalog = GameContentPackCatalog.Build(GameContentAuthoringProviderRegistry.Providers);
             _packContext = _packSelection.Refresh(_packCatalog, preferred);
+            _editSessions?.Reconcile(_packCatalog);
             RefreshContentLibrary();
             if (_recordSelection.SelectedKey != null && _recordSelection.Resolve(_packContext) == null)
                 _recordSelection.Clear();
