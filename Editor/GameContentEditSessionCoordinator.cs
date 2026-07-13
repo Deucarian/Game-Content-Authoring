@@ -37,7 +37,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentSourceTarget sourceTarget,
             GameContentSourceRevision originalRevision,
             GameContentEditSnapshot snapshot,
-            IReadOnlyList<GameContentFieldDescriptor> fields)
+            IReadOnlyList<GameContentFieldDescriptor> fields,
+            IReadOnlyList<GameContentRecordDescriptor> packRecords)
         {
             Request = request;
             BackendSession = backendSession;
@@ -47,6 +48,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             OriginalRevision = originalRevision;
             Snapshot = snapshot;
             Fields = fields ?? Array.Empty<GameContentFieldDescriptor>();
+            PackRecords = packRecords ?? Array.Empty<GameContentRecordDescriptor>();
             Changes = Array.Empty<GameContentProposedChange>();
             Validation = GameContentValidationPreview.Valid;
             StaleCheck = GameContentStaleCheckResult.Current(originalRevision);
@@ -61,6 +63,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         public GameContentSourceRevision OriginalRevision { get; }
         public GameContentEditSnapshot Snapshot { get; }
         public IReadOnlyList<GameContentFieldDescriptor> Fields { get; }
+        internal IReadOnlyList<GameContentRecordDescriptor> PackRecords { get; set; }
         public IReadOnlyList<GameContentProposedChange> Changes { get; internal set; }
         public GameContentEditSessionState State { get; internal set; }
         public GameContentValidationPreview Validation { get; internal set; }
@@ -274,7 +277,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                     sourceTarget,
                     originalRevision,
                     snapshot,
-                    fields);
+                    fields,
+                    backendSession);
                 if (!string.IsNullOrWhiteSpace(contractError))
                 {
                     DisposeBackend(backendSession);
@@ -307,7 +311,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                     sourceTarget,
                     originalRevision,
                     snapshot,
-                    fields);
+                    fields,
+                    context.Records);
                 if (!RefreshFromBackend(active, false) || active.State != GameContentEditSessionState.Clean)
                 {
                     DisposeBackend(backendSession);
@@ -337,6 +342,104 @@ namespace Deucarian.GameContentAuthoring.Editor
             return recordKey != null && _sessionsByRecord.TryGetValue(recordKey.StableKey, out session);
         }
 
+        public GameContentReferenceCandidateSet GetReferenceCandidates(
+            GameContentActiveEditSession active,
+            string fieldId)
+        {
+            if (!Owns(active))
+            {
+                return new GameContentReferenceCandidateSet(
+                    fieldId,
+                    null,
+                    null,
+                    "The edit session is no longer active.");
+            }
+
+            GameContentFieldDescriptor field = FindField(active, fieldId);
+            if (field == null || field.FieldType != GameContentFieldType.RecordReference)
+            {
+                return new GameContentReferenceCandidateSet(
+                    fieldId,
+                    null,
+                    null,
+                    "The field is not an editable record reference.");
+            }
+
+            var candidates = new List<GameContentReferenceCandidate>();
+            var rejections = new List<GameContentReferenceCandidateRejection>();
+            GameContentRecordDescriptor[] records = (active.PackRecords ?? Array.Empty<GameContentRecordDescriptor>())
+                .Where(value => value != null && value.CanonicalKey != null)
+                .OrderBy(value => value.CanonicalKey.StableKey, StringComparer.Ordinal)
+                .ThenBy(value => value.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            for (int i = 0; i < records.Length; i++)
+            {
+                GameContentRecordDescriptor record = records[i];
+                GameContentReferenceEvaluation evaluation = EvaluateReferenceTargetCore(
+                    active,
+                    field,
+                    record.CanonicalKey);
+                if (evaluation.IsValid)
+                    candidates.Add(new GameContentReferenceCandidate(record, evaluation));
+                else
+                    rejections.Add(new GameContentReferenceCandidateRejection(record.CanonicalKey, evaluation.Reason));
+            }
+
+            string message = candidates.Count == 0
+                ? "No compatible targets are available in the selected content pack."
+                : string.Empty;
+            return new GameContentReferenceCandidateSet(field.FieldId, candidates, rejections, message);
+        }
+
+        public GameContentReferenceEvaluation EvaluateReferenceTarget(
+            GameContentActiveEditSession active,
+            string fieldId,
+            GameContentRecordKey targetKey)
+        {
+            if (!Owns(active))
+                return GameContentReferenceEvaluation.Rejected(targetKey, "The edit session is no longer active.");
+            GameContentFieldDescriptor field = FindField(active, fieldId);
+            if (field == null || field.FieldType != GameContentFieldType.RecordReference)
+                return GameContentReferenceEvaluation.Rejected(targetKey, "The field is not an editable record reference.");
+            return EvaluateReferenceTargetCore(active, field, targetKey);
+        }
+
+        public GameContentReferenceChangeReview GetReferenceChangeReview(
+            GameContentActiveEditSession active,
+            GameContentProposedChange change)
+        {
+            if (!Owns(active) || change == null) return null;
+            GameContentFieldDescriptor field = FindField(active, change.FieldId);
+            if (field == null || field.FieldType != GameContentFieldType.RecordReference) return null;
+
+            GameContentRecordReferenceValue oldValue = change.OldValue?.RecordReferenceValue;
+            GameContentRecordReferenceValue newValue = change.ProposedValue?.RecordReferenceValue;
+            GameContentRecordDescriptor oldTarget = ResolveReferenceRecord(active, oldValue);
+            GameContentRecordDescriptor newTarget = ResolveReferenceRecord(active, newValue);
+            bool targetChanged = oldValue == null || newValue == null || !oldValue.Equals(newValue);
+            GameContentRecordDescriptor source = (active.PackRecords ?? Array.Empty<GameContentRecordDescriptor>())
+                .FirstOrDefault(value => value != null && value.CanonicalKey.Equals(active.RecordKey));
+            GameContentReferenceRuntimeImpact runtimeImpact = field.RecordReference?.RuntimeImpact ??
+                                                               GameContentReferenceRuntimeImpact.None;
+            if (newValue != null && newValue.IsResolved)
+            {
+                GameContentReferenceEvaluation evaluation = EvaluateReferenceTargetCore(active, field, newValue.TargetKey);
+                runtimeImpact |= evaluation.RuntimeImpact;
+            }
+
+            return new GameContentReferenceChangeReview(
+                active.RecordKey,
+                field.FieldId,
+                oldValue,
+                newValue,
+                oldTarget,
+                newTarget,
+                source?.InboundReferences.Count ?? 0,
+                targetChanged && oldValue != null && oldValue.IsResolved ? -1 : 0,
+                targetChanged && newValue != null && newValue.IsResolved ? 1 : 0,
+                runtimeImpact);
+        }
+
         public GameContentEditOperationResult Apply(
             GameContentActiveEditSession active,
             string fieldId,
@@ -344,12 +447,24 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (!Owns(active)) return GameContentEditOperationResult.Failure("The edit session is no longer active.");
             if (!CanMutate(active)) return GameContentEditOperationResult.Failure("The edit session cannot accept changes in its current state.");
-            GameContentFieldDescriptor field = active.Fields.FirstOrDefault(candidate =>
-                string.Equals(candidate.FieldId, fieldId, StringComparison.Ordinal));
+            GameContentFieldDescriptor field = FindField(active, fieldId);
             if (field == null) return GameContentEditOperationResult.Failure("The field is not exposed by this edit session.");
             if (field.IsReadOnly) return GameContentEditOperationResult.Failure(field.ReadOnlyReason);
             if (value == null || value.FieldType != field.FieldType)
                 return GameContentEditOperationResult.Failure("The proposed value does not match the field type.");
+            if (field.FieldType == GameContentFieldType.RecordReference &&
+                !field.Accepts(value, out string reason))
+                return GameContentEditOperationResult.Failure(reason);
+
+            if (field.FieldType == GameContentFieldType.RecordReference &&
+                value.RecordReferenceValue != null && value.RecordReferenceValue.IsResolved)
+            {
+                GameContentReferenceEvaluation evaluation = EvaluateReferenceTargetCore(
+                    active,
+                    field,
+                    value.RecordReferenceValue.TargetKey);
+                if (!evaluation.IsValid) return GameContentEditOperationResult.Failure(evaluation.Reason);
+            }
 
             try
             {
@@ -408,8 +523,11 @@ namespace Deucarian.GameContentAuthoring.Editor
                 return GameContentValidationPreview.Error("Editing", "Validation is unavailable while the source is committing.");
             try
             {
-                active.Validation = active.BackendSession.Preview()
+                GameContentValidationPreview backendPreview = active.BackendSession.Preview()
                     ?? GameContentValidationPreview.Error("Editing", "The editing backend returned no validation preview.");
+                active.Validation = MergeReferenceValidation(
+                    backendPreview,
+                    EvaluateStagedReferences(active));
                 active.Message = BuildValidationMessage(active.Validation);
                 RefreshFromBackend(active, false);
                 return active.Validation;
@@ -471,6 +589,25 @@ namespace Deucarian.GameContentAuthoring.Editor
                 return GameContentCommitResult.Failure("Fix validation errors before committing.", active.OriginalRevision);
             if (preview.RequiresWarningConfirmation && !confirmWarnings)
                 return GameContentCommitResult.Failure("Confirm the validation warnings before committing.", active.OriginalRevision);
+
+            IReadOnlyList<GameContentAuthoringValidationIssue> freshReferenceIssues = EvaluateStagedReferences(active);
+            if (freshReferenceIssues.Any(value => value.Severity == GameContentAuthoringValidationSeverity.Error))
+            {
+                active.Validation = MergeReferenceValidation(preview, freshReferenceIssues);
+                active.Message = BuildValidationMessage(active.Validation);
+                return GameContentCommitResult.Failure(
+                    "The selected record reference changed or disappeared. Review it before committing.",
+                    active.OriginalRevision);
+            }
+            if (!confirmWarnings && freshReferenceIssues.Any(value =>
+                    value.Severity == GameContentAuthoringValidationSeverity.Warning))
+            {
+                active.Validation = MergeReferenceValidation(preview, freshReferenceIssues);
+                active.Message = BuildValidationMessage(active.Validation);
+                return GameContentCommitResult.Failure(
+                    "Confirm the record-reference validation warnings before committing.",
+                    active.OriginalRevision);
+            }
 
             active.State = GameContentEditSessionState.Committing;
             active.Message = "Committing source changes.";
@@ -593,9 +730,15 @@ namespace Deucarian.GameContentAuthoring.Editor
                 bool stillAvailable = entry != null &&
                                       !entry.IsConflict &&
                                       entry.Pack.SourceState == GameContentPackSourceState.Available &&
-                                      string.Equals(entry.Pack.ProviderId, active.BackendId, StringComparison.OrdinalIgnoreCase) &&
-                                      entry.Records.Any(record => record.CanonicalKey.Equals(active.RecordKey));
-                if (!stillAvailable) CloseForReset(active);
+                                       string.Equals(entry.Pack.ProviderId, active.BackendId, StringComparison.OrdinalIgnoreCase) &&
+                                       entry.Records.Any(record => record.CanonicalKey.Equals(active.RecordKey));
+                if (!stillAvailable)
+                {
+                    CloseForReset(active);
+                    continue;
+                }
+
+                active.PackRecords = entry.Records ?? Array.Empty<GameContentRecordDescriptor>();
             }
         }
 
@@ -624,6 +767,188 @@ namespace Deucarian.GameContentAuthoring.Editor
             _disposed = true;
         }
 
+        private static GameContentFieldDescriptor FindField(
+            GameContentActiveEditSession active,
+            string fieldId)
+        {
+            return active?.Fields.FirstOrDefault(candidate =>
+                string.Equals(candidate.FieldId, fieldId, StringComparison.Ordinal));
+        }
+
+        private static GameContentRecordDescriptor ResolveReferenceRecord(
+            GameContentActiveEditSession active,
+            GameContentRecordReferenceValue reference)
+        {
+            if (active == null || reference == null || !reference.IsResolved || reference.TargetKey == null)
+                return null;
+            return (active.PackRecords ?? Array.Empty<GameContentRecordDescriptor>())
+                .FirstOrDefault(value => value != null && value.CanonicalKey.Equals(reference.TargetKey));
+        }
+
+        private static GameContentReferenceEvaluation EvaluateReferenceTargetCore(
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor field,
+            GameContentRecordKey targetKey)
+        {
+            if (active == null || field == null || field.FieldType != GameContentFieldType.RecordReference ||
+                field.RecordReference == null)
+                return GameContentReferenceEvaluation.Rejected(targetKey, "The record-reference field contract is unavailable.");
+            if (targetKey == null || !targetKey.IsValid)
+                return GameContentReferenceEvaluation.Rejected(targetKey, "The target has no valid canonical record key.");
+            if (field.RecordReference.PackPolicy != GameContentReferencePackPolicy.SameSelectedPack)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "Only references within the selected content pack are supported.",
+                    samePackPolicySatisfied: false);
+            }
+
+            bool sameOwner = string.Equals(
+                targetKey.OwningPackageId,
+                active.RecordKey.OwningPackageId,
+                StringComparison.OrdinalIgnoreCase);
+            bool samePack = string.Equals(
+                targetKey.PackId,
+                active.RecordKey.PackId,
+                StringComparison.OrdinalIgnoreCase);
+            if (!sameOwner || !samePack)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The target does not belong to the currently selected content pack.",
+                    samePackPolicySatisfied: false);
+            }
+
+            GameContentRecordDescriptor target = (active.PackRecords ?? Array.Empty<GameContentRecordDescriptor>())
+                .FirstOrDefault(value => value != null && value.CanonicalKey.Equals(targetKey));
+            if (target == null)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The target is absent from the fresh selected-pack index.",
+                    sourceClaimValid: false);
+            }
+
+            bool capabilitiesSatisfied = field.RecordReference.RequiredCapabilities.All(target.HasCapability);
+            if (!capabilitiesSatisfied)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The target does not provide every capability required by this reference.",
+                    requiredCapabilitiesSatisfied: false);
+            }
+
+            if (target.Validation == null || !target.Validation.IsValid || target.HasBrokenReferences)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The target has blocking validation errors or broken references.",
+                    validationState: GameContentEditValidationState.Invalid);
+            }
+
+            if (!(active.BackendSession is IGameContentRecordReferenceEditSession referenceSession))
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The editing backend does not support record-reference evaluation.");
+            }
+
+            GameContentReferenceEvaluation providerEvaluation;
+            try
+            {
+                providerEvaluation = referenceSession.EvaluateReferenceTarget(field.FieldId, targetKey);
+            }
+            catch (Exception exception)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The editing backend could not evaluate the target: " + exception.GetBaseException().Message);
+            }
+
+            if (providerEvaluation == null)
+                return GameContentReferenceEvaluation.Rejected(targetKey, "The editing backend returned no target evaluation.");
+            if (providerEvaluation.ResolvedTargetKey == null ||
+                !providerEvaluation.ResolvedTargetKey.Equals(targetKey))
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The editing backend resolved a different canonical target.");
+            }
+
+            return new GameContentReferenceEvaluation(
+                providerEvaluation.IsValid,
+                providerEvaluation.Reason,
+                targetKey,
+                capabilitiesSatisfied && providerEvaluation.RequiredCapabilitiesSatisfied,
+                sameOwner && samePack && providerEvaluation.SamePackPolicySatisfied,
+                providerEvaluation.SourceClaimValid,
+                providerEvaluation.ProviderCompatibilitySatisfied,
+                providerEvaluation.ValidationState,
+                field.RecordReference.RuntimeImpact | providerEvaluation.RuntimeImpact);
+        }
+
+        private static IReadOnlyList<GameContentAuthoringValidationIssue> EvaluateStagedReferences(
+            GameContentActiveEditSession active)
+        {
+            var issues = new List<GameContentAuthoringValidationIssue>();
+            if (active == null) return issues;
+            foreach (GameContentProposedChange change in active.Changes ?? Array.Empty<GameContentProposedChange>())
+            {
+                GameContentFieldDescriptor field = FindField(active, change.FieldId);
+                if (field == null || field.FieldType != GameContentFieldType.RecordReference) continue;
+                if (!field.Accepts(change.ProposedValue, out string reason))
+                {
+                    issues.Add(GameContentAuthoringValidationIssue.Error(field.FieldId, reason));
+                    continue;
+                }
+
+                GameContentRecordReferenceValue reference = change.ProposedValue.RecordReferenceValue;
+                if (reference == null || reference.IsNone) continue;
+                GameContentReferenceEvaluation evaluation = EvaluateReferenceTargetCore(
+                    active,
+                    field,
+                    reference.TargetKey);
+                if (!evaluation.IsValid)
+                {
+                    issues.Add(GameContentAuthoringValidationIssue.Error(field.FieldId, evaluation.Reason));
+                }
+                else if (evaluation.ValidationState == GameContentEditValidationState.Warning)
+                {
+                    issues.Add(GameContentAuthoringValidationIssue.Warning(
+                        field.FieldId,
+                        string.IsNullOrWhiteSpace(evaluation.Reason)
+                            ? "The target is compatible but has validation warnings."
+                            : evaluation.Reason));
+                }
+            }
+            return issues;
+        }
+
+        private static GameContentValidationPreview MergeReferenceValidation(
+            GameContentValidationPreview backendPreview,
+            IReadOnlyList<GameContentAuthoringValidationIssue> referenceIssues)
+        {
+            backendPreview = backendPreview ?? GameContentValidationPreview.Valid;
+            referenceIssues = referenceIssues ?? Array.Empty<GameContentAuthoringValidationIssue>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var merged = new List<GameContentAuthoringValidationIssue>();
+            foreach (GameContentAuthoringValidationIssue issue in backendPreview.Issues.Concat(referenceIssues))
+            {
+                if (issue == null) continue;
+                string key = ((int)issue.Severity) + "\n" + issue.Path + "\n" + issue.Message;
+                if (seen.Add(key)) merged.Add(issue);
+            }
+
+            bool referenceHasErrors = referenceIssues.Any(value =>
+                value != null && value.Severity == GameContentAuthoringValidationSeverity.Error);
+            bool referenceHasWarnings = referenceIssues.Any(value =>
+                value != null && value.Severity == GameContentAuthoringValidationSeverity.Warning);
+            return new GameContentValidationPreview(
+                merged,
+                backendPreview.CanCommit && !referenceHasErrors,
+                backendPreview.RequiresWarningConfirmation || referenceHasWarnings);
+        }
+
         private static string ValidateSessionContract(
             GameContentEditRequest request,
             GameContentEditAvailability availability,
@@ -632,7 +957,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentSourceTarget sourceTarget,
             GameContentSourceRevision originalRevision,
             GameContentEditSnapshot snapshot,
-            IReadOnlyList<GameContentFieldDescriptor> fields)
+            IReadOnlyList<GameContentFieldDescriptor> fields,
+            IGameContentEditSession backendSession)
         {
             if (!string.Equals(backendId, request.ProviderId, StringComparison.OrdinalIgnoreCase))
                 return "The edit session backend ID does not match the registered provider.";
@@ -648,7 +974,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 snapshot.SourceRevision == null || !snapshot.SourceRevision.Equals(originalRevision))
                 return "The edit session snapshot does not match the requested record and source.";
             if (fields == null || fields.Count == 0 || fields.All(value => value.IsReadOnly))
-                return "The edit session exposes no writable scalar fields.";
+                return "The edit session exposes no writable fields.";
             if (fields.Any(value => !value.IsValid)) return "The edit session exposes a field without a stable field ID.";
             if (fields.GroupBy(value => value.FieldId, StringComparer.Ordinal).Any(group => group.Count() > 1))
                 return "The edit session exposes duplicate field IDs.";
@@ -659,6 +985,9 @@ namespace Deucarian.GameContentAuthoring.Editor
             if (fields.Any(value => snapshot.FieldValues[value.FieldId] == null ||
                                     snapshot.FieldValues[value.FieldId].FieldType != value.FieldType))
                 return "The edit session snapshot contains a field value with the wrong type.";
+            if (fields.Any(value => value.FieldType == GameContentFieldType.RecordReference && !value.IsReadOnly) &&
+                !(backendSession is IGameContentRecordReferenceEditSession))
+                return "The edit session exposes a writable record reference without the optional reference-session contract.";
             return string.Empty;
         }
 

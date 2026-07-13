@@ -74,9 +74,9 @@ For another game template:
 
 A named-pack provider opts in by implementing `IGameContentPackEditProvider` on the same instance already registered through `GameContentAuthoringProviderRegistry`. There is no edit-backend registry and no universal serializer. Providers without the optional interface remain read-only and keep their existing behavior.
 
-GCA owns the editor transaction shell: availability checks, lifecycle and validation state, one active session per opaque physical-source lock key, scalar controls, Undo/Redo dispatch, change review, stale/conflict/recovery presentation, commit/cancel/rollback orchestration, exception containment, and refresh notifications. The provider owns canonical-record-to-source mapping, the original snapshot and revision, editable field descriptors, proposed-value and whole-source validation, stale detection, persistence, rollback, durable recovery, and descriptor reindexing.
+GCA owns the editor transaction shell: availability checks, lifecycle and validation state, one active session per opaque physical-source lock key, scalar and canonical-reference controls, Undo/Redo dispatch, change review, stale/conflict/recovery presentation, commit/cancel/rollback orchestration, exception containment, and refresh notifications. The provider owns canonical-record-to-source mapping, the original snapshot and revision, editable field descriptors, proposed-value and whole-source validation, stale detection, persistence, rollback, durable recovery, and descriptor reindexing.
 
-The generic field model supports only provider-approved strings, integers, floating-point numbers, booleans, and enum tokens. Stable IDs, pack/source/canonical IDs, references, Unity objects, assets, lists, arrays, dictionaries, nested structural changes, and computed fields remain read-only. Errors block commit. Warnings remain reviewable and require explicit confirmation before commit.
+The generic field model supports provider-approved strings, integers, floating-point numbers, booleans, enum tokens, and explicitly described one-to-one `RecordReference` values. Stable IDs, pack/source/canonical IDs, provider-native reference tokens, unrestricted Unity object selection, assets, lists, arrays, dictionaries, nested structural changes, and computed fields remain read-only. Errors block commit. Warnings remain reviewable and require explicit confirmation before commit.
 
 The lifecycle is `Clean` to `Dirty`, followed by `Committed` or `RolledBack`; stale sources and incompatible ownership enter `Stale` or `Conflict`, and an ambiguous commit/rollback enters `RecoveryRequired`. `Committing` disables mutation and cancellation. Disposal never commits. Closing the window or reloading assemblies rolls back and discards ordinary uncommitted state; providers are responsible for any durable recovery record required after a failed persistence operation.
 
@@ -84,11 +84,24 @@ A canonical record shown through several lenses attaches to the same source sess
 
 The generic source contract exposes an opaque provider token, source label, project-relative description, and lock identity, not a writable absolute path. Future production backends must validate declared project-owned roots and reject installed package sources, `PackageCache`, `Samples~`, `Library`, `Temp`, traversal, and symlink or reparse-point escapes.
 
+## Canonical Record References
+
+`GameContentFieldType.RecordReference` carries a `GameContentRecordReferenceValue`, never a provider-native string or Unity object. A reference is `None`, `Resolved`, or `Broken`. A resolved value stores the target's immutable `GameContentRecordKey`; optional display metadata does not participate in identity. A broken value preserves the provider's original display information and an actionable reason without choosing a fallback.
+
+A reference descriptor declares its target label, required capabilities, required or nullable behavior, clear behavior, runtime impact, and pack policy. Milestone 2D1 supports only `SameSelectedPack`. `All Packs`, cross-owner keys, cross-pack keys, missing records, records with blocking validation, and targets that lose required capabilities are rejected. Stable record and source IDs remain immutable.
+
+GCA enumerates and deterministically sorts records from the selected pack, performs generic owner, pack, capability, and validation checks, then calls the active session's optional `IGameContentRecordReferenceEditSession` contract. The provider re-resolves the canonical key against its fresh authoritative source and owns source claims, native type checks, domain compatibility, serialization, rollback, and reindexing. Scalar-only sessions remain compatible and do not implement this extension.
+
+The existing workbench renders a searchable canonical-record selector rather than a free-form ID or unrestricted object field. Required broken references stay visible until the user selects a valid target; nullable fields may expose an explicit `None`. Change review shows old and new targets, owning pack, capabilities, validation, predicted inbound-reference deltas, source inbound count, and declared refresh/rebind/restart impact. Selecting a target never rewrites inbound references.
+
+Reference targets are re-resolved during Apply, Preview, and immediately before Commit. A disappeared, stale, reclassified, multiply claimed, invalid, or provider-rejected target blocks Commit without substitution. The source transaction still locks and writes only the selected physical source; the target remains read-only and no multi-source transaction is opened.
+
 ## Safe-Editing Roadmap
 
 Milestone 2A provides only the generic transaction contract, workbench, coordination, and an EditMode-only in-memory proof backend. No production pack is writable yet.
 
 - 2B: limited Survivors JSON scalar editing with source hashes, minimally destructive patching, full-pack validation, atomic replacement, backup/recovery, and reindexing.
 - 2C: limited Idle Auto Defense ScriptableObject scalar editing with `SerializedObject`, Unity Undo, validation, save/refresh, and source-claim preservation.
-- 2D: specialized complex-field and canonical-reference editing.
+- 2D1: same-pack one-to-one canonical-record reference editing with provider-owned native mapping.
+- Later 2D milestones: reference collections and other specialized complex fields.
 - Later: create, duplicate, delete, and content-pack cloning workflows.
