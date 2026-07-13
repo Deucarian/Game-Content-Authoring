@@ -24,6 +24,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentPackContext packContext,
             IReadOnlyList<GameContentLensDescriptor> lenses,
             GameContentRecordDescriptor selectedRecord,
+            GameContentEditSessionCoordinator editSessions,
             Action refreshLibrary,
             Action<GameContentLibraryItem> selectItem,
             Action clearSelection,
@@ -42,6 +43,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             PackContext = packContext;
             Lenses = lenses ?? Array.Empty<GameContentLensDescriptor>();
             SelectedRecord = selectedRecord;
+            EditSessions = editSessions;
             _refreshLibrary = refreshLibrary;
             _selectItem = selectItem;
             _clearSelection = clearSelection;
@@ -70,6 +72,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         public IReadOnlyList<GameContentRecordDescriptor> PackRecords =>
             PackContext == null ? Array.Empty<GameContentRecordDescriptor>() : PackContext.Records;
         public GameContentRecordDescriptor SelectedRecord { get; }
+        public GameContentEditSessionCoordinator EditSessions { get; }
         public bool HasSelectedItem => SelectedItem != null;
         public bool HasSelectedRecord => SelectedRecord != null;
         public bool CanCreate => PackContext != null && PackContext.Access.CanCreate;

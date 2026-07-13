@@ -70,6 +70,25 @@ For another game template:
 8. Do not duplicate a record to make it visible in another lens.
 9. Do not enable create/edit actions unless the selected backend explicitly supports them.
 
+## Transactional Editing Foundation
+
+A named-pack provider opts in by implementing `IGameContentPackEditProvider` on the same instance already registered through `GameContentAuthoringProviderRegistry`. There is no edit-backend registry and no universal serializer. Providers without the optional interface remain read-only and keep their existing behavior.
+
+GCA owns the editor transaction shell: availability checks, lifecycle and validation state, one active session per opaque physical-source lock key, scalar controls, Undo/Redo dispatch, change review, stale/conflict/recovery presentation, commit/cancel/rollback orchestration, exception containment, and refresh notifications. The provider owns canonical-record-to-source mapping, the original snapshot and revision, editable field descriptors, proposed-value and whole-source validation, stale detection, persistence, rollback, durable recovery, and descriptor reindexing.
+
+The generic field model supports only provider-approved strings, integers, floating-point numbers, booleans, and enum tokens. Stable IDs, pack/source/canonical IDs, references, Unity objects, assets, lists, arrays, dictionaries, nested structural changes, and computed fields remain read-only. Errors block commit. Warnings remain reviewable and require explicit confirmation before commit.
+
+The lifecycle is `Clean` to `Dirty`, followed by `Committed` or `RolledBack`; stale sources and incompatible ownership enter `Stale` or `Conflict`, and an ambiguous commit/rollback enters `RecoveryRequired`. `Committing` disables mutation and cancellation. Disposal never commits. Closing the window or reloading assemblies rolls back and discards ordinary uncommitted state; providers are responsible for any durable recovery record required after a failed persistence operation.
+
+A canonical record shown through several lenses attaches to the same source session, so its staged values, commit, and cancellation are shared. A different record backed by the same physical source is blocked in this first milestone. `All Packs` never attaches to an editable session and remains read-only. Existing Project Content scanning, creation, and provider-specific ScriptableObject editors remain on their current paths, including source-claim exclusion; no migration is required.
+
+The generic source contract exposes an opaque provider token, source label, project-relative description, and lock identity, not a writable absolute path. Future production backends must validate declared project-owned roots and reject installed package sources, `PackageCache`, `Samples~`, `Library`, `Temp`, traversal, and symlink or reparse-point escapes.
+
 ## Safe-Editing Roadmap
 
-Transactional named-pack editing is intentionally deferred. A future JSON backend needs schema-aware edits, source hashes, atomic replacement, and backups. A ScriptableObject backend needs `SerializedObject`, Unity Undo, reference validation, and AssetDatabase refresh. GCA should coordinate those provider-owned transactions rather than treating JSON and Unity serialization as one writer. The current capability contract reserves write operations without implying that they are implemented.
+Milestone 2A provides only the generic transaction contract, workbench, coordination, and an EditMode-only in-memory proof backend. No production pack is writable yet.
+
+- 2B: limited Survivors JSON scalar editing with source hashes, minimally destructive patching, full-pack validation, atomic replacement, backup/recovery, and reindexing.
+- 2C: limited Idle Auto Defense ScriptableObject scalar editing with `SerializedObject`, Unity Undo, validation, save/refresh, and source-claim preservation.
+- 2D: specialized complex-field and canonical-reference editing.
+- Later: create, duplicate, delete, and content-pack cloning workflows.

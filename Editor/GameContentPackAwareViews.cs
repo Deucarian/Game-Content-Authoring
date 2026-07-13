@@ -219,6 +219,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 }
             }
 
+            GameContentEditWorkbench.Draw(context, selected, lens.LensId);
             drawDomainDetails?.Invoke(selected);
             DrawMetadata(selected);
             DrawReferences(context, selected, "References", selected.OutboundReferences);
