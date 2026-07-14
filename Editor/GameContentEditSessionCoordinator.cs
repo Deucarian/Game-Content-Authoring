@@ -415,6 +415,83 @@ namespace Deucarian.GameContentAuthoring.Editor
             return EvaluateReferenceTargetCore(active, field, targetKey);
         }
 
+        public GameContentReferenceCandidateSet GetStructuredReferenceCandidates(
+            GameContentActiveEditSession active,
+            string fieldId,
+            GameContentStructuredRowKey rowKey,
+            string rowFieldId)
+        {
+            if (!Owns(active))
+            {
+                return new GameContentReferenceCandidateSet(
+                    rowFieldId,
+                    null,
+                    null,
+                    "The edit session is no longer active.");
+            }
+
+            GameContentFieldDescriptor field = FindField(active, fieldId);
+            GameContentFieldDescriptor rowField = ResolveStructuredRowField(field, rowFieldId);
+            if (rowField?.FieldType != GameContentFieldType.RecordReference)
+            {
+                return new GameContentReferenceCandidateSet(
+                    rowFieldId,
+                    null,
+                    null,
+                    "The selected structured-row field is not a canonical record reference.");
+            }
+
+            var candidates = new List<GameContentReferenceCandidate>();
+            var rejections = new List<GameContentReferenceCandidateRejection>();
+            GameContentRecordDescriptor[] records = (active.PackRecords ?? Array.Empty<GameContentRecordDescriptor>())
+                .Where(value => value != null && value.CanonicalKey != null)
+                .OrderBy(value => value.CanonicalKey.StableKey, StringComparer.Ordinal)
+                .ThenBy(value => value.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            for (int i = 0; i < records.Length; i++)
+            {
+                GameContentRecordDescriptor record = records[i];
+                GameContentReferenceEvaluation evaluation = EvaluateStructuredReferenceTargetCore(
+                    active,
+                    field,
+                    rowKey,
+                    rowField,
+                    record.CanonicalKey);
+                if (evaluation.IsValid)
+                    candidates.Add(new GameContentReferenceCandidate(record, evaluation));
+                else
+                    rejections.Add(new GameContentReferenceCandidateRejection(record.CanonicalKey, evaluation.Reason));
+            }
+
+            return new GameContentReferenceCandidateSet(
+                rowField.FieldId,
+                candidates,
+                rejections,
+                candidates.Count == 0
+                    ? "No compatible targets are available in the selected content pack."
+                    : string.Empty);
+        }
+
+        public GameContentReferenceEvaluation EvaluateStructuredRowReference(
+            GameContentActiveEditSession active,
+            string fieldId,
+            GameContentStructuredRowKey rowKey,
+            string rowFieldId,
+            GameContentRecordKey targetKey)
+        {
+            if (!Owns(active))
+                return GameContentReferenceEvaluation.Rejected(targetKey, "The edit session is no longer active.");
+            GameContentFieldDescriptor field = FindField(active, fieldId);
+            GameContentFieldDescriptor rowField = ResolveStructuredRowField(field, rowFieldId);
+            if (rowField?.FieldType != GameContentFieldType.RecordReference)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The selected structured-row field is not a canonical record reference.");
+            }
+            return EvaluateStructuredReferenceTargetCore(active, field, rowKey, rowField, targetKey);
+        }
+
         public GameContentReferenceChangeReview GetReferenceChangeReview(
             GameContentActiveEditSession active,
             GameContentProposedChange change)
@@ -481,6 +558,60 @@ namespace Deucarian.GameContentAuthoring.Editor
                 runtimeImpact);
         }
 
+        public GameContentStructuredCollectionChangeReview GetStructuredCollectionChangeReview(
+            GameContentActiveEditSession active,
+            GameContentProposedChange change)
+        {
+            if (!Owns(active) || change == null) return null;
+            GameContentFieldDescriptor field = FindField(active, change.FieldId);
+            if (field?.FieldType != GameContentFieldType.OrderedStructuredCollection ||
+                field.StructuredCollection == null)
+                return null;
+
+            GameContentOrderedStructuredCollectionValue original =
+                change.OldValue?.OrderedStructuredCollectionValue;
+            GameContentOrderedStructuredCollectionValue proposed =
+                change.ProposedValue?.OrderedStructuredCollectionValue;
+            GameContentReferenceRuntimeImpact runtimeImpact = field.StructuredCollection.RuntimeImpact;
+            if (proposed != null)
+            {
+                for (int rowIndex = 0; rowIndex < proposed.Rows.Count; rowIndex++)
+                {
+                    GameContentStructuredRowValue row = proposed.Rows[rowIndex];
+                    for (int fieldIndex = 0; fieldIndex < row.FieldValues.Count; fieldIndex++)
+                    {
+                        GameContentStructuredRowFieldValue child = row.FieldValues[fieldIndex];
+                        if (child.Value.FieldType != GameContentFieldType.RecordReference) continue;
+                        GameContentRecordReferenceValue reference = child.Value.RecordReferenceValue;
+                        if (reference == null || !reference.IsResolved || reference.TargetKey == null) continue;
+                        GameContentFieldDescriptor rowField = ResolveStructuredRowField(field, child.FieldId);
+                        GameContentReferenceEvaluation evaluation = EvaluateStructuredReferenceTargetCore(
+                            active,
+                            field,
+                            row.RowKey,
+                            rowField,
+                            reference.TargetKey);
+                        runtimeImpact |= evaluation.RuntimeImpact;
+                    }
+                }
+            }
+
+            string pathPrefix = field.FieldId + "[";
+            IReadOnlyList<GameContentAuthoringValidationIssue> findings = (active.Validation?.Issues ??
+                Array.Empty<GameContentAuthoringValidationIssue>())
+                .Where(issue => issue != null &&
+                                (string.Equals(issue.Path, field.FieldId, StringComparison.Ordinal) ||
+                                 issue.Path.StartsWith(pathPrefix, StringComparison.Ordinal)))
+                .ToArray();
+            return GameContentStructuredCollectionChangeReview.Create(
+                active.RecordKey,
+                field.FieldId,
+                original,
+                proposed,
+                findings,
+                runtimeImpact);
+        }
+
         public GameContentEditOperationResult Apply(
             GameContentActiveEditSession active,
             string fieldId,
@@ -493,6 +624,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             if (field.IsReadOnly) return GameContentEditOperationResult.Failure(field.ReadOnlyReason);
             if (field.FieldType.IsOrderedCollection())
                 return GameContentEditOperationResult.Failure("Use an ordered collection operation to change this field.");
+            if (field.FieldType == GameContentFieldType.OrderedStructuredCollection)
+                return GameContentEditOperationResult.Failure("Use a structured-row operation to change this field.");
             if (value == null || value.FieldType != field.FieldType)
                 return GameContentEditOperationResult.Failure("The proposed value does not match the field type.");
             if (field.FieldType == GameContentFieldType.RecordReference &&
@@ -611,6 +744,140 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
             active.Message = "Restored the surviving original items to their original order.";
             return GameContentEditOperationResult.Success(active.Message);
+        }
+
+        public GameContentStructuredCollectionOperationResult ValidateStructuredOperation(
+            GameContentActiveEditSession active,
+            string fieldId,
+            GameContentStructuredCollectionOperation operation)
+        {
+            if (!Owns(active))
+                return GameContentStructuredCollectionOperationResult.Failure(
+                    "The edit session is no longer active.");
+            if (!CanMutate(active))
+            {
+                return GameContentStructuredCollectionOperationResult.Failure(
+                    "The edit session cannot accept changes in its current state.");
+            }
+            GameContentFieldDescriptor field = FindField(active, fieldId);
+            if (field?.FieldType != GameContentFieldType.OrderedStructuredCollection ||
+                field.StructuredCollection == null)
+            {
+                return GameContentStructuredCollectionOperationResult.Failure(
+                    "The field is not an editable ordered structured collection.");
+            }
+            if (field.IsReadOnly)
+                return GameContentStructuredCollectionOperationResult.Failure(field.ReadOnlyReason);
+            if (!(active.BackendSession is IGameContentStructuredCollectionEditSession))
+            {
+                return GameContentStructuredCollectionOperationResult.Failure(
+                    "The editing backend does not support structured-row operations.");
+            }
+
+            GameContentOrderedStructuredCollectionValue current =
+                active.GetEffectiveValue(field.FieldId)?.OrderedStructuredCollectionValue;
+            if (!GameContentStructuredCollectionMutation.TryApply(
+                    field,
+                    current,
+                    operation,
+                    out GameContentOrderedStructuredCollectionValue proposed,
+                    out GameContentStructuredRowKey affectedRowKey,
+                    out string reason))
+                return GameContentStructuredCollectionOperationResult.Failure(reason);
+
+            IReadOnlyList<GameContentAuthoringValidationIssue> referenceIssues =
+                EvaluateStructuredCollectionReferences(active, field, proposed);
+            GameContentAuthoringValidationIssue error = referenceIssues.FirstOrDefault(issue =>
+                issue.Severity == GameContentAuthoringValidationSeverity.Error);
+            if (error != null)
+                return GameContentStructuredCollectionOperationResult.Failure(error.Message);
+
+            return GameContentStructuredCollectionOperationResult.Success(rowKey: affectedRowKey);
+        }
+
+        public GameContentStructuredCollectionOperationResult ApplyStructuredOperation(
+            GameContentActiveEditSession active,
+            string fieldId,
+            GameContentStructuredCollectionOperation operation)
+        {
+            if (!Owns(active))
+                return GameContentStructuredCollectionOperationResult.Failure(
+                    "The edit session is no longer active.");
+            GameContentStaleCheckResult stale = CheckStale(active);
+            if (stale.IsStale)
+            {
+                return GameContentStructuredCollectionOperationResult.Failure(
+                    string.IsNullOrWhiteSpace(stale.Message)
+                        ? "The source changed after editing began."
+                        : stale.Message);
+            }
+
+            GameContentStructuredCollectionOperation prepared = operation;
+            if (operation?.Kind == GameContentStructuredCollectionOperationKind.AddRow &&
+                operation.RowKey == null)
+            {
+                prepared = operation.BindGeneratedRowKey(GameContentStructuredRowKey.CreateSessionKey());
+            }
+            GameContentStructuredCollectionOperationResult validation = ValidateStructuredOperation(
+                active,
+                fieldId,
+                prepared);
+            if (!validation.Succeeded)
+            {
+                active.Message = validation.Message;
+                return validation;
+            }
+
+            try
+            {
+                var structuredSession = (IGameContentStructuredCollectionEditSession)active.BackendSession;
+                GameContentStructuredCollectionOperationResult result =
+                    structuredSession.ApplyStructuredOperation(fieldId, prepared) ??
+                    GameContentStructuredCollectionOperationResult.Failure(
+                        "The editing backend returned no structured-operation result.");
+                if (result.Succeeded && prepared.Kind == GameContentStructuredCollectionOperationKind.AddRow &&
+                    (result.RowKey == null || !result.RowKey.Equals(prepared.RowKey)))
+                {
+                    result = GameContentStructuredCollectionOperationResult.Failure(
+                        "The editing backend did not preserve the coordinator-generated structured-row key.");
+                }
+                RefreshFromBackend(active, false);
+                if (result.Succeeded) Preview(active);
+                active.Message = result.Message;
+                return result;
+            }
+            catch (Exception exception)
+            {
+                GameContentEditOperationResult contained = OperationException(
+                    active,
+                    "Structured-row operation",
+                    exception,
+                    false);
+                return GameContentStructuredCollectionOperationResult.Failure(contained.Message);
+            }
+        }
+
+        public GameContentStructuredCollectionOperationResult RestoreOriginalStructuredOrder(
+            GameContentActiveEditSession active,
+            string fieldId)
+        {
+            GameContentFieldDescriptor field = FindField(active, fieldId);
+            if (field?.FieldType != GameContentFieldType.OrderedStructuredCollection)
+            {
+                return GameContentStructuredCollectionOperationResult.Failure(
+                    "The field is not an editable ordered structured collection.");
+            }
+            GameContentOrderedStructuredCollectionValue current =
+                active.GetEffectiveValue(fieldId)?.OrderedStructuredCollectionValue;
+            if (!GameContentStructuredCollectionMutation.NeedsRestoreOriginalOrder(current))
+            {
+                return GameContentStructuredCollectionOperationResult.Success(
+                    "The structured rows are already in their original order.");
+            }
+            return ApplyStructuredOperation(
+                active,
+                fieldId,
+                GameContentStructuredCollectionOperation.RestoreOriginalOrder());
         }
 
         public GameContentEditOperationResult Undo(GameContentActiveEditSession active)
@@ -924,6 +1191,15 @@ namespace Deucarian.GameContentAuthoring.Editor
             return null;
         }
 
+        private static GameContentFieldDescriptor ResolveStructuredRowField(
+            GameContentFieldDescriptor field,
+            string rowFieldId)
+        {
+            return field?.FieldType == GameContentFieldType.OrderedStructuredCollection
+                ? field.StructuredCollection?.RowDescriptor?.FindField(rowFieldId)
+                : null;
+        }
+
         private static bool IsDuplicateCollectionTarget(
             GameContentActiveEditSession active,
             GameContentFieldDescriptor field,
@@ -1056,6 +1332,124 @@ namespace Deucarian.GameContentAuthoring.Editor
                 providerEvaluation.RuntimeImpact);
         }
 
+        private static GameContentReferenceEvaluation EvaluateStructuredReferenceTargetCore(
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor field,
+            GameContentStructuredRowKey rowKey,
+            GameContentFieldDescriptor rowField,
+            GameContentRecordKey targetKey)
+        {
+            GameContentRecordReferenceFieldDescriptor referenceDescriptor = rowField?.RecordReference;
+            if (active == null || field?.FieldType != GameContentFieldType.OrderedStructuredCollection ||
+                field.StructuredCollection == null || rowField == null ||
+                rowField.FieldType != GameContentFieldType.RecordReference || referenceDescriptor == null)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The structured-row reference field contract is unavailable.");
+            }
+            if (targetKey == null || !targetKey.IsValid)
+                return GameContentReferenceEvaluation.Rejected(targetKey, "The target has no valid canonical record key.");
+            if (referenceDescriptor.PackPolicy != GameContentReferencePackPolicy.SameSelectedPack)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "Only references within the selected content pack are supported.",
+                    samePackPolicySatisfied: false);
+            }
+
+            bool sameOwner = string.Equals(
+                targetKey.OwningPackageId,
+                active.RecordKey.OwningPackageId,
+                StringComparison.OrdinalIgnoreCase);
+            bool samePack = string.Equals(
+                targetKey.PackId,
+                active.RecordKey.PackId,
+                StringComparison.OrdinalIgnoreCase);
+            if (!sameOwner || !samePack)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The target does not belong to the currently selected content pack.",
+                    samePackPolicySatisfied: false);
+            }
+
+            GameContentRecordDescriptor target = (active.PackRecords ?? Array.Empty<GameContentRecordDescriptor>())
+                .FirstOrDefault(value => value != null && value.CanonicalKey.Equals(targetKey));
+            if (target == null)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The target is absent from the fresh selected-pack index.",
+                    sourceClaimValid: false);
+            }
+
+            bool capabilitiesSatisfied = referenceDescriptor.RequiredCapabilities.All(target.HasCapability);
+            if (!capabilitiesSatisfied)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The target does not provide every capability required by this structured-row reference.",
+                    requiredCapabilitiesSatisfied: false);
+            }
+            if (target.Validation == null || !target.Validation.IsValid || target.HasBrokenReferences)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The target has blocking validation errors or broken references.",
+                    validationState: GameContentEditValidationState.Invalid);
+            }
+            if (!(active.BackendSession is IGameContentStructuredCollectionEditSession structuredSession))
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The editing backend does not support structured-row reference evaluation.");
+            }
+
+            GameContentReferenceEvaluation providerEvaluation;
+            try
+            {
+                providerEvaluation = structuredSession.EvaluateStructuredRowReference(
+                    field.FieldId,
+                    rowKey,
+                    rowField.FieldId,
+                    targetKey);
+            }
+            catch (Exception exception)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The editing backend could not evaluate the structured-row target: " +
+                    exception.GetBaseException().Message);
+            }
+            if (providerEvaluation == null)
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The editing backend returned no structured-row target evaluation.");
+            }
+            if (providerEvaluation.ResolvedTargetKey == null ||
+                !providerEvaluation.ResolvedTargetKey.Equals(targetKey))
+            {
+                return GameContentReferenceEvaluation.Rejected(
+                    targetKey,
+                    "The editing backend resolved a different canonical target.");
+            }
+
+            return new GameContentReferenceEvaluation(
+                providerEvaluation.IsValid,
+                providerEvaluation.Reason,
+                targetKey,
+                capabilitiesSatisfied && providerEvaluation.RequiredCapabilitiesSatisfied,
+                sameOwner && samePack && providerEvaluation.SamePackPolicySatisfied,
+                providerEvaluation.SourceClaimValid,
+                providerEvaluation.ProviderCompatibilitySatisfied,
+                providerEvaluation.ValidationState,
+                referenceDescriptor.RuntimeImpact |
+                field.StructuredCollection.RuntimeImpact |
+                providerEvaluation.RuntimeImpact);
+        }
+
         private static IReadOnlyList<GameContentAuthoringValidationIssue> EvaluateStagedReferences(
             GameContentActiveEditSession active)
         {
@@ -1064,7 +1458,9 @@ namespace Deucarian.GameContentAuthoring.Editor
             foreach (GameContentFieldDescriptor field in active.Fields ?? Array.Empty<GameContentFieldDescriptor>())
             {
                 if (field == null || field.IsReadOnly ||
-                    (field.FieldType != GameContentFieldType.RecordReference && !field.FieldType.IsOrderedCollection()))
+                    (field.FieldType != GameContentFieldType.RecordReference &&
+                     !field.FieldType.IsOrderedCollection() &&
+                     field.FieldType != GameContentFieldType.OrderedStructuredCollection))
                     continue;
                 GameContentFieldValue proposedValue = active.GetEffectiveValue(field.FieldId);
                 if (!field.Accepts(proposedValue, out string reason))
@@ -1093,6 +1489,74 @@ namespace Deucarian.GameContentAuthoring.Editor
                             field,
                             collection.Items[i].Value.RecordReferenceValue,
                             "Item " + (i + 1) + ": ");
+                    }
+                }
+                else if (field.FieldType == GameContentFieldType.OrderedStructuredCollection)
+                {
+                    issues.AddRange(EvaluateStructuredCollectionReferences(
+                        active,
+                        field,
+                        proposedValue.OrderedStructuredCollectionValue));
+                }
+            }
+            return issues;
+        }
+
+        private static IReadOnlyList<GameContentAuthoringValidationIssue> EvaluateStructuredCollectionReferences(
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor field,
+            GameContentOrderedStructuredCollectionValue collection)
+        {
+            var issues = new List<GameContentAuthoringValidationIssue>();
+            if (active == null || field?.FieldType != GameContentFieldType.OrderedStructuredCollection ||
+                field.StructuredCollection == null || collection == null)
+                return issues;
+            for (int rowIndex = 0; rowIndex < collection.Rows.Count; rowIndex++)
+            {
+                GameContentStructuredRowValue row = collection.Rows[rowIndex];
+                for (int fieldIndex = 0; fieldIndex < row.FieldValues.Count; fieldIndex++)
+                {
+                    GameContentStructuredRowFieldValue child = row.FieldValues[fieldIndex];
+                    if (child.Value.FieldType != GameContentFieldType.RecordReference) continue;
+                    GameContentFieldDescriptor rowField = ResolveStructuredRowField(field, child.FieldId);
+                    string path = field.FieldId + "[" + (rowIndex + 1) + "]." + child.FieldId;
+                    GameContentRecordReferenceValue reference = child.Value.RecordReferenceValue;
+                    if (reference == null || reference.IsNone)
+                    {
+                        if (rowField != null && rowField.Required)
+                        {
+                            issues.Add(GameContentAuthoringValidationIssue.Error(
+                                path,
+                                "A canonical record reference is required."));
+                        }
+                        continue;
+                    }
+                    if (reference.IsBroken || reference.TargetKey == null)
+                    {
+                        issues.Add(GameContentAuthoringValidationIssue.Error(
+                            path,
+                            string.IsNullOrWhiteSpace(reference.BrokenReason)
+                                ? "The structured-row record reference is broken."
+                                : reference.BrokenReason));
+                        continue;
+                    }
+                    GameContentReferenceEvaluation evaluation = EvaluateStructuredReferenceTargetCore(
+                        active,
+                        field,
+                        row.RowKey,
+                        rowField,
+                        reference.TargetKey);
+                    if (!evaluation.IsValid)
+                    {
+                        issues.Add(GameContentAuthoringValidationIssue.Error(path, evaluation.Reason));
+                    }
+                    else if (evaluation.ValidationState == GameContentEditValidationState.Warning)
+                    {
+                        issues.Add(GameContentAuthoringValidationIssue.Warning(
+                            path,
+                            string.IsNullOrWhiteSpace(evaluation.Reason)
+                                ? "The target is compatible but has validation warnings."
+                                : evaluation.Reason));
                     }
                 }
             }
@@ -1183,6 +1647,14 @@ namespace Deucarian.GameContentAuthoring.Editor
                 return "The edit session snapshot does not match the requested record and source.";
             if (fields == null || fields.Count == 0 || fields.All(value => value.IsReadOnly))
                 return "The edit session exposes no writable fields.";
+            GameContentFieldDescriptor boundaryViolation = fields.FirstOrDefault(value =>
+                value.FieldType == GameContentFieldType.OrderedStructuredCollection &&
+                !string.IsNullOrWhiteSpace(value.StructuredCollection?.BoundaryViolationReason));
+            if (boundaryViolation != null)
+            {
+                return "The edit session violates the structured-row boundary: " +
+                       boundaryViolation.StructuredCollection.BoundaryViolationReason;
+            }
             if (fields.Any(value => !value.IsValid)) return "The edit session exposes a field without a stable field ID.";
             if (fields.GroupBy(value => value.FieldId, StringComparer.Ordinal).Any(group => group.Count() > 1))
                 return "The edit session exposes duplicate field IDs.";
@@ -1203,6 +1675,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                                     !value.IsReadOnly) &&
                 !(backendSession is IGameContentRecordReferenceEditSession))
                 return "The edit session exposes a writable record-reference collection without the optional reference-session contract.";
+            if (fields.Any(value => value.FieldType == GameContentFieldType.OrderedStructuredCollection &&
+                                    !value.IsReadOnly) &&
+                !(backendSession is IGameContentStructuredCollectionEditSession))
+            {
+                return "The edit session exposes a writable structured-row collection without the optional structured-session contract.";
+            }
             return string.Empty;
         }
 

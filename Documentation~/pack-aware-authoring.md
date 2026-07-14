@@ -76,7 +76,7 @@ A named-pack provider opts in by implementing `IGameContentPackEditProvider` on 
 
 GCA owns the editor transaction shell: availability checks, lifecycle and validation state, one active session per opaque physical-source lock key, scalar, canonical-reference, and ordered-collection controls, Undo/Redo dispatch, change review, stale/conflict/recovery presentation, commit/cancel/rollback orchestration, exception containment, and refresh notifications. The provider owns canonical-record-to-source mapping, the original snapshot and revision, editable field descriptors, provider-native collection locators, proposed-value and whole-source validation, stale detection, persistence, rollback, durable recovery, and descriptor reindexing.
 
-The generic field model supports provider-approved strings, integers, floating-point numbers, booleans, enum tokens, explicitly described one-to-one `RecordReference` values, and the two ordered field kinds described below. Stable IDs, pack/source/canonical IDs, provider-native reference tokens, unrestricted Unity object selection, assets, dictionaries, structured rows, nested or polymorphic items, and computed fields remain read-only. Errors block commit. Warnings remain reviewable and require explicit confirmation before commit.
+The generic field model supports provider-approved strings, integers, floating-point numbers, booleans, enum tokens, explicitly described one-to-one `RecordReference` values, flat ordered scalar/reference collections, and the ordered structured embedded rows described below. Stable IDs, pack/source/canonical IDs, provider-native reference tokens, unrestricted Unity object selection, assets, dictionaries, nested collections, polymorphic items, and computed fields remain read-only. Errors block commit. Warnings remain reviewable and require explicit confirmation before commit.
 
 The lifecycle is `Clean` to `Dirty`, followed by `Committed` or `RolledBack`; stale sources and incompatible ownership enter `Stale` or `Conflict`, and an ambiguous commit/rollback enters `RecoveryRequired`. `Committing` disables mutation and cancellation. Disposal never commits. Closing the window or reloading assemblies rolls back and discards ordinary uncommitted state; providers are responsible for any durable recovery record required after a failed persistence operation.
 
@@ -104,7 +104,34 @@ Each staged item has an opaque `GameContentCollectionItemKey`. An Add operation 
 
 Providers opt in through the additive `IGameContentOrderedCollectionEditSession` contract. Existing scalar and one-reference providers remain source compatible and collections stay read-only when that optional contract is absent. GCA enforces generic item type, count, duplicate, key, pack, capability, and canonical-target rules. The provider still owns native element mapping, provider-specific validation, serialization, atomicity, rollback, recovery, and reindexing. Invalid staged provider states may remain visible for correction, but Preview and Commit report them and Commit is blocked.
 
-Collection edits use Add, Remove, Move, and Replace operations in the same source transaction and Undo/Redo history as scalar and one-reference edits. Restore Original Order is a deterministic sequence of Move operations for surviving original items, with newly added items kept after them. Referenced records are re-resolved but never locked or modified: removing a reference removes only the collection entry and does not delete its target. These element operations do not add generic create, duplicate, or delete support for canonical records, assets, packs, or physical sources; those CRUD workflows remain outside this milestone. Drag-and-drop, nested collections, maps, structured rows, cross-pack references, bulk editing, and multi-source transactions are also deferred.
+Collection edits use Add, Remove, Move, and Replace operations in the same source transaction and Undo/Redo history as scalar and one-reference edits. Restore Original Order is a deterministic sequence of Move operations for surviving original items, with newly added items kept after them. Referenced records are re-resolved but never locked or modified: removing a reference removes only the collection entry and does not delete its target. These element operations do not add generic create, duplicate, or delete support for canonical records, assets, packs, or physical sources; those CRUD workflows remain outside this milestone. Drag-and-drop, nested collections, maps, cross-pack references, bulk editing, and multi-source transactions are also deferred.
+
+## Structured Embedded Rows
+
+`GameContentFieldType.OrderedStructuredCollection` represents an ordered sequence of child values serialized inside one existing physical source and owned entirely by one parent source record. Each row uses a stable provider-whitelisted schema and deterministic field descriptors. Initially supported child fields are string, integer, finite floating-point number, boolean, enum token, and one-to-one canonical `RecordReference`. Nested collections, nested structured rows, arrays, maps, dictionaries, polymorphic or managed-reference values, Unity objects, assets, raw paths, free-form IDs, and stable-ID editing are rejected.
+
+This boundary is semantic, not merely structural:
+
+- A flat ordered item is one scalar or one canonical reference.
+- A structured embedded row is several fields forming one child value whose full lifetime belongs to the parent source record.
+- A nested authored record has stable canonical, save-data, inbound-reference, source-ownership, or independent pack identity; adding or removing it is record CRUD.
+- A top-level source record exists in a root collection or independent source asset; adding or removing it is record CRUD.
+
+Providers must explicitly declare if a proposed child represents independent canonical identity, and GCA rejects that schema with a CRUD boundary error. Adding a structured row never creates a top-level authored record. Removing one never deletes a source record or referenced target. Stable identities remain immutable.
+
+Each source session assigns every row an opaque `GameContentStructuredRowKey`, including initial rows with identical persisted content. `AddRow` accepts field values only; the coordinator generates its key. Keys remain stable through Move, field replacement, Undo, and Redo, allowing duplicate rows to remain independently addressable. They are discarded on source reload or a new session, excluded from persisted equality, and must never be serialized as domain identity. A provider may separately declare an immutable native key; GCA displays it read-only, validates uniqueness when present, and never assumes it is a canonical record ID.
+
+`IGameContentStructuredCollectionEditSession` is an optional extension on the existing edit session. It applies `AddRow`, `RemoveRow`, `MoveRow`, `ReplaceRowField`, and `RestoreOriginalOrder`, and evaluates row reference fields against fresh provider state. Existing sessions remain compatible when they do not expose the new field type. No second backend registry exists.
+
+Structured operations share the exact mixed session history with scalar, one-reference, and flat collection operations. A new operation after Undo clears the Redo branch. Restore Original Order places surviving original rows by session-start index, keeps new rows afterward in their current relative order, and does not recreate removed rows; Undo may restore them. All operations preserve the one-session-per-physical-source lock and stale/conflict/recovery lifecycle. Referenced targets remain read-only and are never locked.
+
+The existing GCA workbench renders a row list with index, summary, optional native key, validation state, Add/Remove, Move Up/Down, and Restore Original Order controls. Its selected-row detail uses the existing scalar, enum, and canonical-reference controls with field help and findings. Change review shows original/proposed order, added/removed/moved rows, changed child fields, old/new values, reference targets, validation findings, and refresh/rebind/restart hints. Deterministic buttons are used; drag-and-drop remains deferred.
+
+GCA enforces only generic structure: schema, supported fields, required values, scalar constraints, enum tokens, count limits, duplicate policy, operation permissions, valid session keys, unique declared native keys, canonical reference validity, and same-selected-pack policy. Providers own domain compatibility, gameplay and ordering semantics, cross-field relationships, cycles, strict startup rules, source serialization, whole-pack validation, and durable recovery. Production implementations must whitelist row schemas and child fields, enforce project-owned source roots, reject unsafe native values, validate immediately before persistence, and fail closed.
+
+References are re-resolved on AddRow, ReplaceRowField, Undo, Redo, Preview, and immediately before Commit. A source revision change invalidates the complete session; keys are not merged or remapped. Missing targets, lost capabilities, changed source claims, disappeared packs/providers, and broken references remain visible and block Commit until repaired or legitimately cleared when nullable.
+
+This foundation is proven only by a private EditMode in-memory provider with no production files or assets. No production pack becomes structured-row writable. `All Packs` remains read-only, claimed named-pack sources remain excluded from writable Project Content, and existing Project Content scanning, creation, and provider-owned editing do not route through structured-row transactions.
 
 ## Safe-Editing Roadmap
 
@@ -114,5 +141,7 @@ Milestone 2A provides only the generic transaction contract, workbench, coordina
 - 2C: limited Idle Auto Defense ScriptableObject scalar editing with `SerializedObject`, Unity Undo, validation, save/refresh, and source-claim preservation.
 - 2D1: same-pack one-to-one canonical-record reference editing with provider-owned native mapping.
 - 2D2A: generic ordered scalar and same-pack canonical-reference collection contracts, coordination, workbench controls, and an EditMode-only in-memory proof backend.
-- Later 2D milestones: production-provider collection adapters and other specialized complex fields.
-- Later: create, duplicate, delete, and content-pack cloning workflows.
+- 2D2B: generic structured embedded-row contracts, coordination, workbench controls, and an EditMode-only in-memory proof backend.
+- Next: Survivors `upgrades[*].effects` production structured-row editing.
+- Then: resolve Idle wave-entry identity before exposing Idle wave-entry rows.
+- Later: multi-source transactions, record CRUD, and pack cloning, in that order.
