@@ -19,7 +19,9 @@ namespace Deucarian.GameContentAuthoring.Editor
         Number = 2,
         Boolean = 3,
         Enum = 4,
-        RecordReference = 5
+        RecordReference = 5,
+        OrderedScalarCollection = 6,
+        OrderedRecordReferenceCollection = 7
     }
 
     public enum GameContentEditSessionState
@@ -239,7 +241,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             long integerValue,
             double numberValue,
             bool booleanValue,
-            GameContentRecordReferenceValue recordReferenceValue)
+            GameContentRecordReferenceValue recordReferenceValue,
+            GameContentOrderedCollectionValue orderedCollectionValue)
         {
             FieldType = fieldType;
             StringValue = stringValue ?? string.Empty;
@@ -247,6 +250,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             NumberValue = numberValue;
             BooleanValue = booleanValue;
             RecordReferenceValue = recordReferenceValue;
+            OrderedCollectionValue = orderedCollectionValue;
         }
 
         public GameContentFieldType FieldType { get; }
@@ -255,30 +259,31 @@ namespace Deucarian.GameContentAuthoring.Editor
         public double NumberValue { get; }
         public bool BooleanValue { get; }
         public GameContentRecordReferenceValue RecordReferenceValue { get; }
+        public GameContentOrderedCollectionValue OrderedCollectionValue { get; }
 
         public static GameContentFieldValue FromString(string value)
         {
-            return new GameContentFieldValue(GameContentFieldType.String, value, 0L, 0d, false, null);
+            return new GameContentFieldValue(GameContentFieldType.String, value, 0L, 0d, false, null, null);
         }
 
         public static GameContentFieldValue FromInteger(long value)
         {
-            return new GameContentFieldValue(GameContentFieldType.Integer, string.Empty, value, 0d, false, null);
+            return new GameContentFieldValue(GameContentFieldType.Integer, string.Empty, value, 0d, false, null, null);
         }
 
         public static GameContentFieldValue FromNumber(double value)
         {
-            return new GameContentFieldValue(GameContentFieldType.Number, string.Empty, 0L, value, false, null);
+            return new GameContentFieldValue(GameContentFieldType.Number, string.Empty, 0L, value, false, null, null);
         }
 
         public static GameContentFieldValue FromBoolean(bool value)
         {
-            return new GameContentFieldValue(GameContentFieldType.Boolean, string.Empty, 0L, 0d, value, null);
+            return new GameContentFieldValue(GameContentFieldType.Boolean, string.Empty, 0L, 0d, value, null, null);
         }
 
         public static GameContentFieldValue FromEnum(string token)
         {
-            return new GameContentFieldValue(GameContentFieldType.Enum, token, 0L, 0d, false, null);
+            return new GameContentFieldValue(GameContentFieldType.Enum, token, 0L, 0d, false, null, null);
         }
 
         public static GameContentFieldValue FromRecordReference(GameContentRecordReferenceValue value)
@@ -290,7 +295,35 @@ namespace Deucarian.GameContentAuthoring.Editor
                 0L,
                 0d,
                 false,
+                value,
+                null);
+        }
+
+        public static GameContentFieldValue FromOrderedCollection(GameContentOrderedCollectionValue value)
+        {
+            if (value == null) throw new ArgumentNullException(nameof(value));
+            return new GameContentFieldValue(
+                value.FieldType,
+                string.Empty,
+                0L,
+                0d,
+                false,
+                null,
                 value);
+        }
+
+        public static GameContentFieldValue FromOrderedScalarCollection(GameContentOrderedCollectionValue value)
+        {
+            if (value == null || value.FieldType != GameContentFieldType.OrderedScalarCollection)
+                throw new ArgumentException("An ordered scalar collection value is required.", nameof(value));
+            return FromOrderedCollection(value);
+        }
+
+        public static GameContentFieldValue FromOrderedRecordReferenceCollection(GameContentOrderedCollectionValue value)
+        {
+            if (value == null || value.FieldType != GameContentFieldType.OrderedRecordReferenceCollection)
+                throw new ArgumentException("An ordered record-reference collection value is required.", nameof(value));
+            return FromOrderedCollection(value);
         }
 
         public string ToDisplayString()
@@ -305,6 +338,9 @@ namespace Deucarian.GameContentAuthoring.Editor
                     return BooleanValue ? "True" : "False";
                 case GameContentFieldType.RecordReference:
                     return RecordReferenceValue == null ? string.Empty : RecordReferenceValue.ToDisplayString();
+                case GameContentFieldType.OrderedScalarCollection:
+                case GameContentFieldType.OrderedRecordReferenceCollection:
+                    return OrderedCollectionValue == null ? string.Empty : OrderedCollectionValue.ToDisplayString();
                 default:
                     return StringValue;
             }
@@ -323,6 +359,9 @@ namespace Deucarian.GameContentAuthoring.Editor
                     return BooleanValue == other.BooleanValue;
                 case GameContentFieldType.RecordReference:
                     return Equals(RecordReferenceValue, other.RecordReferenceValue);
+                case GameContentFieldType.OrderedScalarCollection:
+                case GameContentFieldType.OrderedRecordReferenceCollection:
+                    return Equals(OrderedCollectionValue, other.OrderedCollectionValue);
                 default:
                     return string.Equals(StringValue, other.StringValue, StringComparison.Ordinal);
             }
@@ -348,6 +387,9 @@ namespace Deucarian.GameContentAuthoring.Editor
                         return (hash * 397) ^ BooleanValue.GetHashCode();
                     case GameContentFieldType.RecordReference:
                         return (hash * 397) ^ (RecordReferenceValue == null ? 0 : RecordReferenceValue.GetHashCode());
+                    case GameContentFieldType.OrderedScalarCollection:
+                    case GameContentFieldType.OrderedRecordReferenceCollection:
+                        return (hash * 397) ^ (OrderedCollectionValue == null ? 0 : OrderedCollectionValue.GetHashCode());
                     default:
                         return (hash * 397) ^ StringComparer.Ordinal.GetHashCode(StringValue);
                 }
@@ -390,7 +432,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             int? minimumLength = null,
             int? maximumLength = null,
             IEnumerable<GameContentEnumOption> enumOptions = null,
-            GameContentRecordReferenceFieldDescriptor recordReference = null)
+            GameContentRecordReferenceFieldDescriptor recordReference = null,
+            GameContentCollectionFieldDescriptor collection = null)
         {
             FieldId = Normalize(fieldId);
             SemanticId = Normalize(semanticId);
@@ -410,6 +453,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 ? Array.Empty<GameContentEnumOption>()
                 : enumOptions.Where(value => value != null && !string.IsNullOrWhiteSpace(value.Token)).ToArray();
             RecordReference = recordReference;
+            Collection = collection;
         }
 
         public string FieldId { get; }
@@ -428,10 +472,13 @@ namespace Deucarian.GameContentAuthoring.Editor
         public int? MaximumLength { get; }
         public IReadOnlyList<GameContentEnumOption> EnumOptions { get; }
         public GameContentRecordReferenceFieldDescriptor RecordReference { get; }
+        public GameContentCollectionFieldDescriptor Collection { get; }
         public bool IsValid => !string.IsNullOrWhiteSpace(FieldId) &&
                                (FieldType == GameContentFieldType.RecordReference
-                                   ? RecordReference != null && RecordReference.IsValid
-                                   : RecordReference == null);
+                                   ? RecordReference != null && RecordReference.IsValid && Collection == null
+                                   : FieldType.IsOrderedCollection()
+                                       ? RecordReference == null && Collection != null && Collection.IsValidFor(FieldType)
+                                       : RecordReference == null && Collection == null);
 
         public bool Accepts(GameContentFieldValue value, out string reason)
         {
@@ -484,6 +531,16 @@ namespace Deucarian.GameContentAuthoring.Editor
 
                 reason = string.Empty;
                 return true;
+            }
+
+            if (FieldType.IsOrderedCollection())
+            {
+                if (Collection == null || value.OrderedCollectionValue == null)
+                {
+                    reason = "The ordered-collection field has no valid collection metadata or value.";
+                    return false;
+                }
+                return Collection.Accepts(FieldType, Required, value.OrderedCollectionValue, out reason);
             }
 
             if (FieldType == GameContentFieldType.String || FieldType == GameContentFieldType.Enum)

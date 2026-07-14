@@ -74,9 +74,9 @@ For another game template:
 
 A named-pack provider opts in by implementing `IGameContentPackEditProvider` on the same instance already registered through `GameContentAuthoringProviderRegistry`. There is no edit-backend registry and no universal serializer. Providers without the optional interface remain read-only and keep their existing behavior.
 
-GCA owns the editor transaction shell: availability checks, lifecycle and validation state, one active session per opaque physical-source lock key, scalar and canonical-reference controls, Undo/Redo dispatch, change review, stale/conflict/recovery presentation, commit/cancel/rollback orchestration, exception containment, and refresh notifications. The provider owns canonical-record-to-source mapping, the original snapshot and revision, editable field descriptors, proposed-value and whole-source validation, stale detection, persistence, rollback, durable recovery, and descriptor reindexing.
+GCA owns the editor transaction shell: availability checks, lifecycle and validation state, one active session per opaque physical-source lock key, scalar, canonical-reference, and ordered-collection controls, Undo/Redo dispatch, change review, stale/conflict/recovery presentation, commit/cancel/rollback orchestration, exception containment, and refresh notifications. The provider owns canonical-record-to-source mapping, the original snapshot and revision, editable field descriptors, provider-native collection locators, proposed-value and whole-source validation, stale detection, persistence, rollback, durable recovery, and descriptor reindexing.
 
-The generic field model supports provider-approved strings, integers, floating-point numbers, booleans, enum tokens, and explicitly described one-to-one `RecordReference` values. Stable IDs, pack/source/canonical IDs, provider-native reference tokens, unrestricted Unity object selection, assets, lists, arrays, dictionaries, nested structural changes, and computed fields remain read-only. Errors block commit. Warnings remain reviewable and require explicit confirmation before commit.
+The generic field model supports provider-approved strings, integers, floating-point numbers, booleans, enum tokens, explicitly described one-to-one `RecordReference` values, and the two ordered field kinds described below. Stable IDs, pack/source/canonical IDs, provider-native reference tokens, unrestricted Unity object selection, assets, dictionaries, structured rows, nested or polymorphic items, and computed fields remain read-only. Errors block commit. Warnings remain reviewable and require explicit confirmation before commit.
 
 The lifecycle is `Clean` to `Dirty`, followed by `Committed` or `RolledBack`; stale sources and incompatible ownership enter `Stale` or `Conflict`, and an ambiguous commit/rollback enters `RecoveryRequired`. `Committing` disables mutation and cancellation. Disposal never commits. Closing the window or reloading assemblies rolls back and discards ordinary uncommitted state; providers are responsible for any durable recovery record required after a failed persistence operation.
 
@@ -96,6 +96,16 @@ The existing workbench renders a searchable canonical-record selector rather tha
 
 Reference targets are re-resolved during Apply, Preview, and immediately before Commit. A disappeared, stale, reclassified, multiply claimed, invalid, or provider-rejected target blocks Commit without substitution. The source transaction still locks and writes only the selected physical source; the target remains read-only and no multi-source transaction is opened.
 
+## Ordered Collections
+
+`GameContentFieldType.OrderedScalarCollection` and `GameContentFieldType.OrderedRecordReferenceCollection` add homogeneous, non-null ordered values to the generic field model. Scalar items use the existing string, integer, floating-point, boolean, or enum-token value kinds. Reference items use canonical `GameContentRecordReferenceValue` values and the same same-selected-pack, capability, validation, and fresh-target evaluation rules as one-to-one references. Minimum count zero permits an empty collection; descriptors may also declare a maximum count, duplicate policy, ordering description, and runtime-impact hint.
+
+Each staged item has an opaque `GameContentCollectionItemKey`. An Add operation carries only the value, so the active session creates the key; callers cannot supply one. Keys survive reorder and in-session Undo/Redo so equal values remain independently addressable, but they are discarded when the source is reloaded and never become persisted identity. Persisted collection equality compares the ordered item values, not session keys or original indexes.
+
+Providers opt in through the additive `IGameContentOrderedCollectionEditSession` contract. Existing scalar and one-reference providers remain source compatible and collections stay read-only when that optional contract is absent. GCA enforces generic item type, count, duplicate, key, pack, capability, and canonical-target rules. The provider still owns native element mapping, provider-specific validation, serialization, atomicity, rollback, recovery, and reindexing. Invalid staged provider states may remain visible for correction, but Preview and Commit report them and Commit is blocked.
+
+Collection edits use Add, Remove, Move, and Replace operations in the same source transaction and Undo/Redo history as scalar and one-reference edits. Restore Original Order is a deterministic sequence of Move operations for surviving original items, with newly added items kept after them. Referenced records are re-resolved but never locked or modified: removing a reference removes only the collection entry and does not delete its target. These element operations do not add generic create, duplicate, or delete support for canonical records, assets, packs, or physical sources; those CRUD workflows remain outside this milestone. Drag-and-drop, nested collections, maps, structured rows, cross-pack references, bulk editing, and multi-source transactions are also deferred.
+
 ## Safe-Editing Roadmap
 
 Milestone 2A provides only the generic transaction contract, workbench, coordination, and an EditMode-only in-memory proof backend. No production pack is writable yet.
@@ -103,5 +113,6 @@ Milestone 2A provides only the generic transaction contract, workbench, coordina
 - 2B: limited Survivors JSON scalar editing with source hashes, minimally destructive patching, full-pack validation, atomic replacement, backup/recovery, and reindexing.
 - 2C: limited Idle Auto Defense ScriptableObject scalar editing with `SerializedObject`, Unity Undo, validation, save/refresh, and source-claim preservation.
 - 2D1: same-pack one-to-one canonical-record reference editing with provider-owned native mapping.
-- Later 2D milestones: reference collections and other specialized complex fields.
+- 2D2A: generic ordered scalar and same-pack canonical-reference collection contracts, coordination, workbench controls, and an EditMode-only in-memory proof backend.
+- Later 2D milestones: production-provider collection adapters and other specialized complex fields.
 - Later: create, duplicate, delete, and content-pack cloning workflows.
