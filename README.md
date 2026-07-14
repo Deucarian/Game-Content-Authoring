@@ -22,7 +22,7 @@ Provider packages implement `IGameContentAuthoringProvider` in an Editor assembl
 - Canonical `(owningPackageId, packId, sourceId, sourceRecordId)` record keys and pack-safe reference resolution.
 - Typed capability and projection-adapter contracts for reusable domain lenses.
 - Unified Pack Dashboard and All Content views with search, capability/source/validation filters, sorting, source reveal, and cross-lens navigation.
-- Optional named-pack edit-provider contracts, one-session-per-source locking, scalar edit controls, change review, validation gating, and recovery presentation.
+- Optional named-pack edit-provider contracts, one-session-per-source locking, scalar, canonical-reference, flat ordered-collection, and structured-row controls, change review, validation gating, and recovery presentation.
 - Installed provider diagnostics list.
 
 ## What This Package Does Not Own
@@ -52,19 +52,40 @@ Records advertise one or more typed capabilities. A single weapon can therefore 
 
 Creation requires a selected backend whose access descriptor reports `CanCreate`. Current JSON packs and `All Packs` do not expose enabled creation or editing, and a missing pack context is not a valid creation target.
 
-Production named packs remain read-only. They support discovery, browsing, search, filtering, deterministic sorting, inspection, references, validation, source reveal, and provider actions. This package now supplies the transaction foundation, but no Survivors JSON or Idle Auto Defense ScriptableObject persistence backend is included yet.
+This package ships no game-specific persistence backend. Named packs remain read-only unless their owning provider package explicitly supplies a safe transaction implementation; GCA itself never parses or serializes template-owned content.
 
 ## Safe Named-Pack Editing Foundation
 
 Named-pack providers opt in through `IGameContentPackEditProvider`; the existing provider instance and provider ID remain the backend identity. GCA coordinates lifecycle, source locking, typed scalar, canonical-reference, and ordered-collection controls, change review, exception containment, stale/conflict display, commit/cancel/rollback actions, and refresh notifications. The provider maps records to sources and owns snapshots, revisions, field exposure, validation, persistence, rollback, recovery, and reindexing. GCA never serializes domain content.
 
-The additive field model supports provider-approved string, integer, floating-point, boolean, enum-token, one-to-one canonical-record reference, ordered scalar collection, and ordered canonical-reference collection fields. Existing providers remain compatible and expose only the optional contracts they implement. Stable IDs, pack/source/canonical IDs, provider-native reference tokens, asset and Unity object references, structured or nested values, and computed values remain read-only. Invalid staged values may be reviewed but errors block commit; warnings require explicit confirmation.
+The additive field model supports provider-approved string, integer, floating-point, boolean, enum-token, one-to-one canonical-record reference, ordered scalar collection, ordered canonical-reference collection, and ordered structured embedded-row fields. Existing providers remain compatible and expose only the optional contracts they implement. Stable IDs, pack/source/canonical IDs, provider-native reference tokens, asset and Unity object references, arbitrary nested values, and computed values remain read-only. Invalid staged values may be reviewed but errors block commit; warnings require explicit confirmation.
 
 One active transaction owns a physical source lock. The same canonical record reached through another compatible lens attaches to that session, while a different record sharing the source is blocked until the first session finishes. `All Packs` is always read-only. Existing `Project Content` scanning, creation, and provider-specific ScriptableObject editors are unchanged and do not route through this coordinator.
 
 Uncommitted sessions are rolled back and discarded when the window closes or assemblies reload; sessions never auto-commit. A provider-reported or exception-generated `RecoveryRequired` state stays locked for explicit review while the session is active, and the provider owns any durable recovery record. Future production backends must enforce project-owned source roots and reject writes to package sources, `PackageCache`, `Samples~`, `Library`, `Temp`, traversal targets, and symlink or reparse-point escapes.
 
-The safe-editing roadmap now includes scalar production adapters, canonical one-reference editing, and the generic ordered-collection foundation. Production collection adapters and other specialized complex fields come next; create, duplicate, delete, and pack cloning remain later workflows.
+### Structured Embedded Rows
+
+`GameContentFieldType.OrderedStructuredCollection` models an ordered child value serialized inside one existing physical source and owned entirely by one parent source record. A row may contain deterministic string, integer, floating-point, boolean, enum-token, and one-to-one same-pack canonical `RecordReference` fields. It may not contain a nested collection, nested structured row, map, polymorphic value, Unity object, asset, raw path, raw/free-form ID, or mutable stable ID.
+
+A structured row is not a hidden canonical record. It has no independent canonical ID, inbound references, save-data identity, source ownership, or pack projection. A child with any of those properties is a nested or top-level authored record, so adding or removing it is CRUD and is rejected by this API. Adding a structured row does not create a top-level record; removing one does not delete a record or any referenced target.
+
+Every row receives an opaque session key. Initial rows with identical persisted values still receive distinct keys; Add callers provide fields only and the coordinator generates the key. Keys survive Move, field replacement, and in-session Undo/Redo, but are discarded on source reload and never become persisted identity. A provider may declare an immutable native row key for read-only display and uniqueness validation; GCA does not edit it or equate it with canonical identity.
+
+Providers opt in through `IGameContentStructuredCollectionEditSession`. Add Row, Remove Row, Move Row, Replace Row Field, and Restore Original Order share the same history, source lock, stale/conflict/recovery behavior, Preview, Commit, Cancel, and Rollback controls as existing field kinds. The existing workbench renders a deterministic row list and selected-row detail panel, including scalar controls, canonical-reference selection, native-key metadata, field findings, row order, adds/removals/moves, old/new field values, reference targets, and runtime-impact hints. No second registry or editor window is introduced.
+
+GCA owns generic schema, supported-type, required-field, count, duplicate, operation-permission, session-key, immutable-native-key, and same-pack canonical-reference checks. Providers still own schema whitelists, source roots, domain compatibility, cross-field/gameplay semantics, source serialization, whole-pack validation, atomicity, rollback, recovery, and refresh/reindex behavior. Production providers must fail closed and must not expose independently canonical children as structured rows.
+
+This milestone is proven only by a private EditMode in-memory provider. No production pack becomes structured-row writable. `All Packs` stays read-only, and existing `Project Content` scanning, creation, and provider-owned editing remain unchanged.
+
+The structured-editing roadmap is:
+
+1. Survivors `upgrades[*].effects` production adapter.
+2. Resolve Idle wave-entry identity.
+3. Idle wave-entry structured rows.
+4. Multi-source transactions.
+5. Record CRUD.
+6. Pack cloning.
 
 See `Documentation~/pack-aware-authoring.md` for the ownership model, registration example, and future-template checklist.
 

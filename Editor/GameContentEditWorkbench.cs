@@ -13,6 +13,10 @@ namespace Deucarian.GameContentAuthoring.Editor
     {
         private static readonly Dictionary<string, GameContentFieldValue> CollectionAddDrafts =
             new Dictionary<string, GameContentFieldValue>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, GameContentStructuredRowKey> StructuredSelections =
+            new Dictionary<string, GameContentStructuredRowKey>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, IReadOnlyList<GameContentStructuredRowFieldValue>> StructuredAddDrafts =
+            new Dictionary<string, IReadOnlyList<GameContentStructuredRowFieldValue>>(StringComparer.Ordinal);
 
         public static void Draw(
             GameContentAuthoringSurfaceContext context,
@@ -157,7 +161,11 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                if (field.FieldType.IsOrderedCollection())
+                if (field.FieldType == GameContentFieldType.OrderedStructuredCollection)
+                {
+                    DrawStructuredCollectionField(context, active, field, current, enabled);
+                }
+                else if (field.FieldType.IsOrderedCollection())
                 {
                     DrawCollectionField(context, active, field, current, enabled);
                 }
@@ -219,6 +227,547 @@ namespace Deucarian.GameContentAuthoring.Editor
                 default:
                     return GameContentFieldValue.FromString(EditorGUILayout.TextField(current.StringValue ?? string.Empty));
             }
+        }
+
+        private static void DrawStructuredCollectionField(
+            GameContentAuthoringSurfaceContext context,
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor field,
+            GameContentFieldValue current,
+            bool enabled)
+        {
+            GameContentOrderedStructuredCollectionValue collection = current?.OrderedStructuredCollectionValue;
+            GameContentStructuredCollectionFieldDescriptor descriptor = field.StructuredCollection;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(field.DisplayName, EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.LabelField(
+                    BuildStructuredCountLabel(descriptor, collection),
+                    DeucarianEditorStyles.MutedLabel,
+                    GUILayout.Width(180f));
+            }
+            if (collection == null || descriptor == null)
+            {
+                EditorGUILayout.HelpBox("The ordered structured collection is unavailable.", MessageType.Error);
+                return;
+            }
+
+            string stateKey = BuildCollectionDraftKey(active, field.FieldId);
+            GameContentStructuredRowValue selected = ResolveSelectedStructuredRow(
+                stateKey,
+                collection);
+            EditorGUILayout.LabelField("Rows", EditorStyles.boldLabel);
+            if (collection.Count == 0)
+                EditorGUILayout.LabelField("No rows.", DeucarianEditorStyles.MutedLabel);
+            for (int i = 0; i < collection.Rows.Count; i++)
+            {
+                GameContentStructuredRowValue row = collection.Rows[i];
+                DrawStructuredRowListItem(
+                    context,
+                    active,
+                    field,
+                    collection,
+                    row,
+                    i,
+                    enabled,
+                    stateKey,
+                    selected);
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                bool canRestore = enabled &&
+                                  descriptor.Allows(
+                                      GameContentStructuredCollectionPermittedOperations.RestoreOriginalOrder) &&
+                                  GameContentStructuredCollectionMutation.NeedsRestoreOriginalOrder(collection);
+                using (new EditorGUI.DisabledScope(!canRestore))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                "Restore Original Order",
+                                "Restore surviving original rows by session-start position; added rows remain after them."),
+                            GUILayout.Width(150f)))
+                    {
+                        context.EditSessions.RestoreOriginalStructuredOrder(active, field.FieldId);
+                        context.RequestRepaint();
+                    }
+                }
+            }
+
+            selected = ResolveSelectedStructuredRow(stateKey, collection);
+            if (selected != null)
+                DrawStructuredRowDetail(
+                    context,
+                    active,
+                    field,
+                    selected,
+                    IndexOfStructuredRow(collection, selected.RowKey),
+                    enabled);
+            if (descriptor.Allows(GameContentStructuredCollectionPermittedOperations.AddRow))
+                DrawStructuredRowAdd(context, active, field, collection, enabled, stateKey);
+
+            EditorGUILayout.HelpBox(
+                "Rows are embedded values owned by this parent source. Adding or removing one does not create or delete a top-level authored record. Stable and provider-native IDs remain read-only.",
+                MessageType.Info);
+        }
+
+        private static void DrawStructuredRowListItem(
+            GameContentAuthoringSurfaceContext context,
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor field,
+            GameContentOrderedStructuredCollectionValue collection,
+            GameContentStructuredRowValue row,
+            int index,
+            bool enabled,
+            string stateKey,
+            GameContentStructuredRowValue selected)
+        {
+            GameContentStructuredCollectionFieldDescriptor descriptor = field.StructuredCollection;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField((index + 1).ToString(CultureInfo.InvariantCulture), GUILayout.Width(24f));
+                bool isSelected = selected != null && selected.RowKey.Equals(row.RowKey);
+                string summary = string.IsNullOrWhiteSpace(row.DisplaySummary) ? "Row " + (index + 1) : row.DisplaySummary;
+                if (GUILayout.Toggle(isSelected, summary, "Button", GUILayout.MinWidth(140f)))
+                    StructuredSelections[stateKey] = row.RowKey;
+                if (!string.IsNullOrWhiteSpace(row.NativeKeyDisplayMetadata))
+                {
+                    EditorGUILayout.LabelField(
+                        row.NativeKeyDisplayMetadata,
+                        DeucarianEditorStyles.MutedLabel,
+                        GUILayout.MaxWidth(120f));
+                }
+                GameContentEditValidationState validationState = GetStructuredRowValidationState(
+                    active.Validation,
+                    field.FieldId,
+                    index,
+                    row.ValidationState);
+                DeucarianEditorStatusBadge.Draw(
+                    validationState.ToString(),
+                    validationState == GameContentEditValidationState.Invalid
+                        ? DeucarianEditorStatus.Error
+                        : validationState == GameContentEditValidationState.Warning
+                            ? DeucarianEditorStatus.Warning
+                            : DeucarianEditorStatus.Success,
+                    GUILayout.Width(62f));
+
+                bool canMove = enabled && descriptor.Allows(
+                    GameContentStructuredCollectionPermittedOperations.MoveRow);
+                using (new EditorGUI.DisabledScope(!canMove || index <= 0))
+                {
+                    if (GUILayout.Button(new GUIContent("Up", "Move this row one position earlier."), GUILayout.Width(42f)))
+                    {
+                        ApplyStructuredOperation(
+                            context,
+                            active,
+                            field.FieldId,
+                            GameContentStructuredCollectionOperation.MoveRow(row.RowKey, index - 1));
+                    }
+                }
+                using (new EditorGUI.DisabledScope(!canMove || index >= collection.Count - 1))
+                {
+                    if (GUILayout.Button(new GUIContent("Down", "Move this row one position later."), GUILayout.Width(48f)))
+                    {
+                        ApplyStructuredOperation(
+                            context,
+                            active,
+                            field.FieldId,
+                            GameContentStructuredCollectionOperation.MoveRow(row.RowKey, index + 1));
+                    }
+                }
+                bool canRemove = enabled &&
+                                 descriptor.Allows(GameContentStructuredCollectionPermittedOperations.RemoveRow) &&
+                                 collection.Count > descriptor.MinimumCount;
+                using (new EditorGUI.DisabledScope(!canRemove))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent(
+                                "Remove",
+                                canRemove
+                                    ? "Remove this embedded row from its parent. Referenced records are not deleted."
+                                    : "The collection is at its minimum row count."),
+                            GUILayout.Width(62f)))
+                    {
+                        ApplyStructuredOperation(
+                            context,
+                            active,
+                            field.FieldId,
+                            GameContentStructuredCollectionOperation.RemoveRow(row.RowKey));
+                    }
+                }
+            }
+        }
+
+        private static void DrawStructuredRowDetail(
+            GameContentAuthoringSurfaceContext context,
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor field,
+            GameContentStructuredRowValue row,
+            int rowIndex,
+            bool enabled)
+        {
+            GameContentStructuredRowDescriptor rowDescriptor = field.StructuredCollection.RowDescriptor;
+            GUILayout.Space(DeucarianEditorSpacing.Small);
+            EditorGUILayout.LabelField("Selected " + rowDescriptor.DisplayName, EditorStyles.boldLabel);
+            if (!string.IsNullOrWhiteSpace(rowDescriptor.HelpText))
+                EditorGUILayout.LabelField(rowDescriptor.HelpText, DeucarianEditorStyles.MutedLabel);
+            if (rowDescriptor.NativeKey != null)
+            {
+                GameContentRecordLensBrowser.DrawRow(
+                    rowDescriptor.NativeKey.DisplayName,
+                    string.IsNullOrWhiteSpace(row.NativeKeyDisplayMetadata)
+                        ? "Not supplied"
+                        : row.NativeKeyDisplayMetadata);
+                if (!string.IsNullOrWhiteSpace(rowDescriptor.NativeKey.HelpText))
+                    EditorGUILayout.LabelField(rowDescriptor.NativeKey.HelpText, DeucarianEditorStyles.MutedLabel);
+            }
+
+            for (int i = 0; i < rowDescriptor.Fields.Count; i++)
+            {
+                GameContentFieldDescriptor rowField = rowDescriptor.Fields[i];
+                bool hasStagedValue = row.TryGetFieldValue(rowField.FieldId, out GameContentFieldValue value);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(rowField.DisplayName, GUILayout.Width(128f));
+                    if (value == null && rowField.IsReadOnly)
+                    {
+                        EditorGUILayout.LabelField("Not set", DeucarianEditorStyles.MutedLabel);
+                    }
+                    else if (rowField.FieldType == GameContentFieldType.RecordReference)
+                    {
+                        value = value ?? CreateDefaultStructuredValue(rowField);
+                        DrawStructuredReferenceSelector(
+                            context,
+                            active,
+                            field,
+                            row.RowKey,
+                            rowField,
+                            value,
+                            enabled && !rowField.IsReadOnly);
+                    }
+                    else
+                    {
+                        value = value ?? CreateDefaultStructuredValue(rowField);
+                        using (new EditorGUI.DisabledScope(!enabled || rowField.IsReadOnly))
+                        {
+                            EditorGUI.BeginChangeCheck();
+                            GameContentFieldValue replacement = DrawScalarValue(rowField, value, true);
+                            if (EditorGUI.EndChangeCheck() && replacement != null && !replacement.Equals(value))
+                            {
+                                ApplyStructuredOperation(
+                                    context,
+                                    active,
+                                    field.FieldId,
+                                    GameContentStructuredCollectionOperation.ReplaceRowField(
+                                        row.RowKey,
+                                        rowField.FieldId,
+                                        replacement));
+                            }
+                        }
+                    }
+                }
+                if (!string.IsNullOrWhiteSpace(rowField.Description))
+                    EditorGUILayout.LabelField(rowField.Description, DeucarianEditorStyles.MutedLabel);
+                if (rowField.IsReadOnly)
+                    EditorGUILayout.LabelField(rowField.ReadOnlyReason, DeucarianEditorStyles.MutedLabel);
+                if (hasStagedValue)
+                    DrawStructuredFieldDelta(active, field.FieldId, row, rowField.FieldId, value);
+                DrawStructuredFieldValidation(
+                    active.Validation,
+                    field.FieldId,
+                    rowIndex,
+                    rowField.FieldId);
+            }
+        }
+
+        private static void DrawStructuredFieldDelta(
+            GameContentActiveEditSession active,
+            string collectionFieldId,
+            GameContentStructuredRowValue stagedRow,
+            string rowFieldId,
+            GameContentFieldValue stagedValue)
+        {
+            GameContentOrderedStructuredCollectionValue originalCollection = null;
+            if (active?.Snapshot != null &&
+                active.Snapshot.TryGetValue(collectionFieldId, out GameContentFieldValue originalField))
+                originalCollection = originalField?.OrderedStructuredCollectionValue;
+            GameContentStructuredRowValue originalRow = null;
+            originalCollection?.TryGetRow(stagedRow.RowKey, out originalRow);
+            GameContentFieldValue originalValue = null;
+            originalRow?.TryGetFieldValue(rowFieldId, out originalValue);
+            if (originalRow != null && Equals(originalValue, stagedValue)) return;
+
+            GameContentRecordLensBrowser.DrawRow(
+                "Before",
+                originalRow == null ? "New embedded row" : originalValue?.ToDisplayString() ?? "Not set");
+            GameContentRecordLensBrowser.DrawRow("Staged", stagedValue?.ToDisplayString() ?? "Not set");
+        }
+
+        private static void DrawStructuredRowAdd(
+            GameContentAuthoringSurfaceContext context,
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor field,
+            GameContentOrderedStructuredCollectionValue collection,
+            bool enabled,
+            string stateKey)
+        {
+            GameContentStructuredCollectionFieldDescriptor descriptor = field.StructuredCollection;
+            string draftKey = stateKey + "|add";
+            if (!StructuredAddDrafts.TryGetValue(draftKey, out IReadOnlyList<GameContentStructuredRowFieldValue> draft))
+                draft = CreateDefaultStructuredDraft(descriptor.RowDescriptor);
+
+            GUILayout.Space(DeucarianEditorSpacing.Small);
+            EditorGUILayout.LabelField("Add " + descriptor.RowDescriptor.DisplayName, EditorStyles.boldLabel);
+            var values = draft.ToDictionary(value => value.FieldId, value => value.Value, StringComparer.Ordinal);
+            for (int i = 0; i < descriptor.RowDescriptor.Fields.Count; i++)
+            {
+                GameContentFieldDescriptor rowField = descriptor.RowDescriptor.Fields[i];
+                if (rowField.IsReadOnly) continue;
+                values.TryGetValue(rowField.FieldId, out GameContentFieldValue current);
+                if (current == null) current = CreateDefaultStructuredValue(rowField);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(rowField.DisplayName, GUILayout.Width(128f));
+                    if (rowField.FieldType == GameContentFieldType.RecordReference)
+                    {
+                        GameContentFieldValue captured = current;
+                        DrawStructuredDraftReferenceSelector(
+                            context,
+                            active,
+                            field,
+                            rowField,
+                            captured,
+                            enabled,
+                            selected =>
+                            {
+                                values[rowField.FieldId] = GameContentFieldValue.FromRecordReference(selected);
+                                StructuredAddDrafts[draftKey] = ToStructuredDraft(descriptor.RowDescriptor, values);
+                            });
+                    }
+                    else
+                    {
+                        using (new EditorGUI.DisabledScope(!enabled))
+                            values[rowField.FieldId] = DrawScalarValue(rowField, current, false);
+                    }
+                }
+            }
+            draft = ToStructuredDraft(descriptor.RowDescriptor, values);
+            StructuredAddDrafts[draftKey] = draft;
+            GameContentStructuredCollectionOperation operation =
+                GameContentStructuredCollectionOperation.AddRow(draft);
+            GameContentStructuredCollectionOperationResult validation =
+                context.EditSessions.ValidateStructuredOperation(active, field.FieldId, operation);
+            bool belowMaximum = !descriptor.MaximumCount.HasValue || collection.Count < descriptor.MaximumCount.Value;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                using (new EditorGUI.DisabledScope(!enabled || !belowMaximum || !validation.Succeeded))
+                {
+                    if (GUILayout.Button(
+                            new GUIContent("Add Row", validation.Message),
+                            GUILayout.Width(76f)))
+                    {
+                        GameContentStructuredCollectionOperationResult result =
+                            context.EditSessions.ApplyStructuredOperation(active, field.FieldId, operation);
+                        if (result.Succeeded)
+                        {
+                            StructuredAddDrafts[draftKey] = CreateDefaultStructuredDraft(
+                                descriptor.RowDescriptor);
+                            StructuredSelections[stateKey] = result.RowKey;
+                        }
+                        context.RequestRepaint();
+                    }
+                }
+            }
+            if (!validation.Succeeded && !string.IsNullOrWhiteSpace(validation.Message))
+                EditorGUILayout.LabelField(validation.Message, DeucarianEditorStyles.MutedLabel);
+        }
+
+        private static void DrawStructuredReferenceSelector(
+            GameContentAuthoringSurfaceContext context,
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor collectionField,
+            GameContentStructuredRowKey rowKey,
+            GameContentFieldDescriptor rowField,
+            GameContentFieldValue current,
+            bool enabled)
+        {
+            GameContentRecordReferenceValue reference = current.RecordReferenceValue;
+            EditorGUILayout.LabelField(DescribeReference(reference), GUILayout.ExpandWidth(true));
+            using (new EditorGUI.DisabledScope(!enabled))
+            {
+                if (GUILayout.Button(new GUIContent("Choose...", "Select a compatible same-pack record."), GUILayout.Width(70f)))
+                {
+                    Rect rect = GUILayoutUtility.GetLastRect();
+                    GameContentReferenceCandidateSet targets = context.EditSessions.GetStructuredReferenceCandidates(
+                        active,
+                        collectionField.FieldId,
+                        rowKey,
+                        rowField.FieldId);
+                    var dropdown = new GameContentReferenceDropdown(
+                        rowField.RecordReference?.TargetLabel ?? "Record",
+                        targets,
+                        !rowField.Required && (rowField.RecordReference?.AllowClear ?? false),
+                        selected => ApplyStructuredOperation(
+                            context,
+                            active,
+                            collectionField.FieldId,
+                            GameContentStructuredCollectionOperation.ReplaceRowField(
+                                rowKey,
+                                rowField.FieldId,
+                                GameContentFieldValue.FromRecordReference(selected))));
+                    dropdown.Show(rect);
+                }
+            }
+        }
+
+        private static void DrawStructuredDraftReferenceSelector(
+            GameContentAuthoringSurfaceContext context,
+            GameContentActiveEditSession active,
+            GameContentFieldDescriptor collectionField,
+            GameContentFieldDescriptor rowField,
+            GameContentFieldValue current,
+            bool enabled,
+            Action<GameContentRecordReferenceValue> selected)
+        {
+            EditorGUILayout.LabelField(DescribeReference(current.RecordReferenceValue), GUILayout.ExpandWidth(true));
+            using (new EditorGUI.DisabledScope(!enabled))
+            {
+                if (GUILayout.Button(new GUIContent("Choose...", "Select a compatible same-pack record."), GUILayout.Width(70f)))
+                {
+                    Rect rect = GUILayoutUtility.GetLastRect();
+                    GameContentReferenceCandidateSet targets = context.EditSessions.GetStructuredReferenceCandidates(
+                        active,
+                        collectionField.FieldId,
+                        null,
+                        rowField.FieldId);
+                    var dropdown = new GameContentReferenceDropdown(
+                        rowField.RecordReference?.TargetLabel ?? "Record",
+                        targets,
+                        !rowField.Required && (rowField.RecordReference?.AllowClear ?? false),
+                        value =>
+                        {
+                            selected?.Invoke(value);
+                            context.RequestRepaint();
+                        });
+                    dropdown.Show(rect);
+                }
+            }
+        }
+
+        private static GameContentStructuredRowValue ResolveSelectedStructuredRow(
+            string stateKey,
+            GameContentOrderedStructuredCollectionValue collection)
+        {
+            if (collection == null || collection.Count == 0)
+            {
+                StructuredSelections.Remove(stateKey);
+                return null;
+            }
+            if (!StructuredSelections.TryGetValue(stateKey, out GameContentStructuredRowKey selected) ||
+                !collection.TryGetRow(selected, out GameContentStructuredRowValue row))
+            {
+                row = collection.Rows[0];
+                StructuredSelections[stateKey] = row.RowKey;
+            }
+            return row;
+        }
+
+        private static IReadOnlyList<GameContentStructuredRowFieldValue> CreateDefaultStructuredDraft(
+            GameContentStructuredRowDescriptor descriptor)
+        {
+            return descriptor.Fields
+                .Where(field => !field.IsReadOnly)
+                .Select(field => new GameContentStructuredRowFieldValue(
+                    field.FieldId,
+                    CreateDefaultStructuredValue(field)))
+                .ToArray();
+        }
+
+        private static GameContentFieldValue CreateDefaultStructuredValue(GameContentFieldDescriptor field)
+        {
+            return field.FieldType == GameContentFieldType.RecordReference
+                ? GameContentFieldValue.FromRecordReference(GameContentRecordReferenceValue.None())
+                : CreateDefaultScalarValue(field);
+        }
+
+        private static IReadOnlyList<GameContentStructuredRowFieldValue> ToStructuredDraft(
+            GameContentStructuredRowDescriptor descriptor,
+            IReadOnlyDictionary<string, GameContentFieldValue> values)
+        {
+            return descriptor.Fields
+                .Where(field => !field.IsReadOnly && values.ContainsKey(field.FieldId))
+                .Select(field => new GameContentStructuredRowFieldValue(field.FieldId, values[field.FieldId]))
+                .ToArray();
+        }
+
+        private static void ApplyStructuredOperation(
+            GameContentAuthoringSurfaceContext context,
+            GameContentActiveEditSession active,
+            string fieldId,
+            GameContentStructuredCollectionOperation operation)
+        {
+            context.EditSessions.ApplyStructuredOperation(active, fieldId, operation);
+            context.RequestRepaint();
+        }
+
+        private static string BuildStructuredCountLabel(
+            GameContentStructuredCollectionFieldDescriptor descriptor,
+            GameContentOrderedStructuredCollectionValue collection)
+        {
+            string maximum = descriptor?.MaximumCount.HasValue == true
+                ? descriptor.MaximumCount.Value.ToString(CultureInfo.InvariantCulture)
+                : "any";
+            return (collection?.Count ?? 0) + " rows | min " + (descriptor?.MinimumCount ?? 0) +
+                   " | max " + maximum;
+        }
+
+        private static void DrawStructuredFieldValidation(
+            GameContentValidationPreview preview,
+            string collectionFieldId,
+            int rowIndex,
+            string rowFieldId)
+        {
+            if (preview == null || rowIndex < 0) return;
+            string path = collectionFieldId + "[" + (rowIndex + 1) + "]." + rowFieldId;
+            GameContentAuthoringValidationIssue[] issues = preview.Issues.Where(issue =>
+                issue != null && string.Equals(issue.Path, path, StringComparison.Ordinal)).ToArray();
+            for (int i = 0; i < issues.Length; i++)
+                EditorGUILayout.HelpBox(issues[i].Message, ToMessageType(issues[i].Severity));
+        }
+
+        private static int IndexOfStructuredRow(
+            GameContentOrderedStructuredCollectionValue collection,
+            GameContentStructuredRowKey rowKey)
+        {
+            if (collection == null || rowKey == null) return -1;
+            for (int i = 0; i < collection.Rows.Count; i++)
+            {
+                if (collection.Rows[i].RowKey.Equals(rowKey)) return i;
+            }
+            return -1;
+        }
+
+        private static GameContentEditValidationState GetStructuredRowValidationState(
+            GameContentValidationPreview preview,
+            string collectionFieldId,
+            int rowIndex,
+            GameContentEditValidationState providerState)
+        {
+            string prefix = collectionFieldId + "[" + (rowIndex + 1) + "]";
+            GameContentAuthoringValidationIssue[] issues = (preview?.Issues ??
+                Array.Empty<GameContentAuthoringValidationIssue>())
+                .Where(issue => issue != null && issue.Path.StartsWith(prefix, StringComparison.Ordinal))
+                .ToArray();
+            if (providerState == GameContentEditValidationState.Invalid ||
+                issues.Any(issue => issue.Severity == GameContentAuthoringValidationSeverity.Error))
+                return GameContentEditValidationState.Invalid;
+            if (providerState == GameContentEditValidationState.Warning ||
+                issues.Any(issue => issue.Severity == GameContentAuthoringValidationSeverity.Warning))
+                return GameContentEditValidationState.Warning;
+            return GameContentEditValidationState.Valid;
         }
 
         private static void DrawCollectionField(
@@ -763,7 +1312,18 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             string detail = field.Description;
             string constraints = string.Empty;
-            if (field.FieldType.IsOrderedCollection() && field.Collection != null)
+            if (field.FieldType == GameContentFieldType.OrderedStructuredCollection &&
+                field.StructuredCollection != null)
+            {
+                string maximum = field.StructuredCollection.MaximumCount.HasValue
+                    ? field.StructuredCollection.MaximumCount.Value.ToString(CultureInfo.InvariantCulture)
+                    : "any";
+                constraints = "Rows: " + field.StructuredCollection.MinimumCount + " to " + maximum + ". " +
+                              field.StructuredCollection.OrderingSemantics + " Duplicates: " +
+                              field.StructuredCollection.DuplicatePolicy + ". Runtime impact: " +
+                              field.StructuredCollection.RuntimeImpact + ".";
+            }
+            else if (field.FieldType.IsOrderedCollection() && field.Collection != null)
             {
                 int minimum = Math.Max(field.Collection.MinimumCount, field.Required ? 1 : 0);
                 string maximum = field.Collection.MaximumCount.HasValue
@@ -827,10 +1387,16 @@ namespace Deucarian.GameContentAuthoring.Editor
                     context.EditSessions.GetReferenceChangeReview(active, change);
                 GameContentCollectionChangeReview collectionReview =
                     context.EditSessions.GetCollectionChangeReview(active, change);
+                GameContentStructuredCollectionChangeReview structuredReview =
+                    context.EditSessions.GetStructuredCollectionChangeReview(active, change);
                 DeucarianEditorCards.DrawInlineCard(() =>
                 {
                     EditorGUILayout.LabelField(change.DisplayName, EditorStyles.boldLabel);
-                    if (collectionReview != null)
+                    if (structuredReview != null)
+                    {
+                        DrawStructuredCollectionReview(structuredReview);
+                    }
+                    else if (collectionReview != null)
                     {
                         DrawCollectionReview(collectionReview);
                     }
@@ -850,6 +1416,70 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GameContentRecordLensBrowser.DrawRow("Rebind", active.CommitResult.RequiresRebind ? "Required" : "Not required");
                 GameContentRecordLensBrowser.DrawRow("Restart", active.CommitResult.RequiresRestart ? "Required" : "Not required");
             }
+        }
+
+        private static void DrawStructuredCollectionReview(GameContentStructuredCollectionChangeReview review)
+        {
+            GameContentRecordLensBrowser.DrawRow(
+                "Source Record",
+                review.SourceRecordKey?.SourceRecordId ?? string.Empty);
+            GameContentRecordLensBrowser.DrawRow(
+                "Original Order",
+                DescribeStructuredRows(review.OriginalOrder));
+            GameContentRecordLensBrowser.DrawRow(
+                "Proposed Order",
+                DescribeStructuredRows(review.ProposedOrder));
+            for (int i = 0; i < review.AddedRows.Count; i++)
+                GameContentRecordLensBrowser.DrawRow("Added Row", DescribeStructuredRow(review.AddedRows[i]));
+            for (int i = 0; i < review.RemovedRows.Count; i++)
+                GameContentRecordLensBrowser.DrawRow("Removed Row", DescribeStructuredRow(review.RemovedRows[i]));
+            for (int i = 0; i < review.MovedRows.Count; i++)
+            {
+                GameContentStructuredRowMove move = review.MovedRows[i];
+                GameContentRecordLensBrowser.DrawRow(
+                    "Moved Row",
+                    move.Summary + " | " + (move.OldIndex + 1) + " -> " + (move.NewIndex + 1));
+            }
+            for (int i = 0; i < review.FieldChanges.Count; i++)
+            {
+                GameContentStructuredRowFieldChange change = review.FieldChanges[i];
+                string before = change.OldValue?.ToDisplayString() ?? "Not set";
+                string after = change.NewValue?.ToDisplayString() ?? "Not set";
+                GameContentRecordLensBrowser.DrawRow(
+                    "Changed " + change.RowFieldId,
+                    change.RowSummary + " | " + before + " -> " + after);
+                if (change.IsReference)
+                {
+                    GameContentRecordLensBrowser.DrawRow(
+                        "Reference Targets",
+                        before + " -> " + after);
+                }
+            }
+            for (int i = 0; i < review.ValidationFindings.Count; i++)
+            {
+                GameContentAuthoringValidationIssue issue = review.ValidationFindings[i];
+                EditorGUILayout.HelpBox(issue.Path + ": " + issue.Message, ToMessageType(issue.Severity));
+            }
+            GameContentRecordLensBrowser.DrawRow("Runtime Impact", review.RuntimeImpact.ToString());
+            EditorGUILayout.HelpBox(
+                "Adding or removing an embedded row changes only its parent source. It does not create or delete a canonical authored record, and stable identities remain read-only.",
+                MessageType.Info);
+        }
+
+        private static string DescribeStructuredRows(IReadOnlyList<GameContentStructuredRowValue> rows)
+        {
+            return rows == null || rows.Count == 0
+                ? "Empty"
+                : string.Join(" -> ", rows.Select(DescribeStructuredRow).ToArray());
+        }
+
+        private static string DescribeStructuredRow(GameContentStructuredRowValue row)
+        {
+            if (row == null) return string.Empty;
+            string summary = string.IsNullOrWhiteSpace(row.DisplaySummary) ? "Row" : row.DisplaySummary;
+            return string.IsNullOrWhiteSpace(row.NativeKeyDisplayMetadata)
+                ? summary
+                : summary + " [" + row.NativeKeyDisplayMetadata + "]";
         }
 
         private static void DrawCollectionReview(GameContentCollectionChangeReview review)
