@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-07-17
+
+- Applied the coordinated portfolio governance metadata and aligned exact Deucarian dependencies.
+- Standardized editor-only provider session state, validation aggregation, record reference/list drawing, and preview summaries for reuse by content packages.
+
 ## Unreleased
 
 - Added generic ordered structured embedded-row descriptors, opaque session identity, Add/Remove/Move/field-replace operations, mixed history, same-pack row-reference validation, review/workbench UI, and a test-only in-memory proof backend; no production pack becomes structured-row writable.

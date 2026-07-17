@@ -1,6 +1,7 @@
 {
   "packageId": "com.deucarian.game-content-authoring",
   "displayName": "Deucarian Game Content Authoring",
+  "samplePolicy": "tool",
   "ownedCapabilities": [
     "game-content-authoring"
   ],

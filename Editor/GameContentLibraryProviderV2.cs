@@ -1033,30 +1033,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                 {
                     DrawSummaryRow("Path", selected.Path);
                     DrawSummaryRow("Folder", selected.Folder);
-                    DrawRawReferenceList("Serialized Dependencies", selected.DirectReferences);
-                    DrawRawReferenceList("Serialized Used By", selected.ReverseReferences);
+                    GameContentAuthoringProviderGUI.DrawReferenceList("Serialized Dependencies", selected.DirectReferences);
+                    GameContentAuthoringProviderGUI.DrawReferenceList("Serialized Used By", selected.ReverseReferences);
                     if (DeucarianEditorButtons.Secondary("Copy Raw Report", true, GUILayout.Width(116f), GUILayout.Height(24f)))
                         EditorGUIUtility.systemCopyBuffer = BuildSelectedMarkdown(report, selected);
                 },
                 false);
-        }
-
-        private static void DrawRawReferenceList(string title, IReadOnlyList<GameContentLibraryReference> references)
-        {
-            EditorGUILayout.LabelField(title, DeucarianEditorStyles.SectionTitle);
-            if (references == null || references.Count == 0)
-            {
-                EditorGUILayout.LabelField("None", DeucarianEditorStyles.MutedLabel);
-                return;
-            }
-
-            for (int i = 0; i < references.Count; i++)
-            {
-                GameContentLibraryReference reference = references[i];
-                if (reference == null || reference.Target == null)
-                    continue;
-                EditorGUILayout.LabelField(reference.Target.DisplayName + " - " + reference.PropertyPath, DeucarianEditorStyles.MutedLabel);
-            }
         }
 
         private static void DrawGraphPreview(
