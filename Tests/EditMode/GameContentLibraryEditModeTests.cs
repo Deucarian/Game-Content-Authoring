@@ -271,8 +271,9 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(GameContentLibraryReportWriter.BuildDependencyLines(contentSet, 3).Any(line => line.Contains("Tower / Weapon -> Basic Tower")), Is.True);
         }
 
-        [Test]
-        public void Scan_InspectsSameFolderSectionAssetsForReferences()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Scan_InspectsSameFolderSectionAssetsForReferences(bool usesCanonicalRoleDirectoryNames)
         {
             AttackDefinitionAsset attack = CreateAsset<AttackDefinitionAsset>("Attack", asset =>
             {
@@ -284,25 +285,52 @@ namespace Deucarian.GameContentAuthoring.Tests
                 asset.Id = "enemy.section";
                 asset.DisplayName = "Section Enemy";
             });
+            RunUpgradeDefinitionAsset upgrade = CreateAsset<RunUpgradeDefinitionAsset>("Upgrade", asset =>
+            {
+                asset.Id = "upgrade.section";
+                asset.DisplayName = "Section Upgrade";
+            });
 
             string weaponFolder = _root + "/weapon.section";
             string waveFolder = _root + "/wave.section";
             AssetDatabase.CreateFolder(_root, "weapon.section");
             AssetDatabase.CreateFolder(_root, "wave.section");
 
-            WeaponDefinitionAsset weapon = CreateAssetAt<WeaponDefinitionAsset>(weaponFolder + "/weapon.section_WeaponDefinition.asset", asset =>
+            string weaponDefinitionName = usesCanonicalRoleDirectoryNames
+                ? "WeaponDefinition.asset"
+                : "weapon.section_WeaponDefinition.asset";
+            string weaponStatsName = usesCanonicalRoleDirectoryNames
+                ? "Stats.asset"
+                : "weapon.section_Stats.asset";
+            string waveDefinitionName = usesCanonicalRoleDirectoryNames
+                ? "WaveDefinition.asset"
+                : "wave.section_WaveDefinition.asset";
+            string waveEntriesName = usesCanonicalRoleDirectoryNames
+                ? "Entries.asset"
+                : "wave.section_Entries.asset";
+
+            WeaponDefinitionAsset weapon = CreateAssetAt<WeaponDefinitionAsset>(weaponFolder + "/" + weaponDefinitionName, asset =>
             {
                 asset.Id = "weapon.section";
                 asset.DisplayName = "Section Tower";
             });
-            CreateAssetAt<WeaponStatsSectionAsset>(weaponFolder + "/weapon.section_Stats.asset", asset => asset.Attack = attack);
+            CreateAssetAt<WeaponStatsSectionAsset>(weaponFolder + "/" + weaponStatsName, asset => asset.Attack = attack);
+            if (usesCanonicalRoleDirectoryNames)
+            {
+                CreateAssetAt<CompanionReferenceSectionAsset>(
+                    weaponFolder + "/Presentation.asset",
+                    asset => asset.Reference = enemy);
+                CreateAssetAt<CompanionReferenceSectionAsset>(
+                    weaponFolder + "/Unrelated.asset",
+                    asset => asset.Reference = upgrade);
+            }
 
-            WaveDefinitionAsset wave = CreateAssetAt<WaveDefinitionAsset>(waveFolder + "/wave.section_WaveDefinition.asset", asset =>
+            WaveDefinitionAsset wave = CreateAssetAt<WaveDefinitionAsset>(waveFolder + "/" + waveDefinitionName, asset =>
             {
                 asset.Id = "wave.section";
                 asset.DisplayName = "Section Wave";
             });
-            CreateAssetAt<WaveEntriesSectionAsset>(waveFolder + "/wave.section_Entries.asset", asset => asset.Enemy = enemy);
+            CreateAssetAt<WaveEntriesSectionAsset>(waveFolder + "/" + waveEntriesName, asset => asset.Enemy = enemy);
 
             CreateAsset<GameContentSetAsset>("ContentSet", asset =>
             {
@@ -312,7 +340,7 @@ namespace Deucarian.GameContentAuthoring.Tests
                 asset.AvailableWeapons = new[] { weapon };
                 asset.EnemyPool = new[] { enemy };
                 asset.WaveSet = new[] { wave };
-                asset.UpgradePool = Array.Empty<RunUpgradeDefinitionAsset>();
+                asset.UpgradePool = new[] { upgrade };
             });
 
             GameContentLibraryReport report = GameContentLibraryService.Scan(_root);
@@ -320,9 +348,14 @@ namespace Deucarian.GameContentAuthoring.Tests
             GameContentLibraryItem waveItem = report.Items.Single(item => item.Id == "wave.section");
             GameContentLibraryItem attackItem = report.Items.Single(item => item.Id == "attack.section");
             GameContentLibraryItem enemyItem = report.Items.Single(item => item.Id == "enemy.section");
+            GameContentLibraryItem upgradeItem = report.Items.Single(item => item.Id == "upgrade.section");
 
             Assert.That(weaponItem.DirectReferences.Any(reference => ReferenceEquals(reference.Target, attackItem)), Is.True);
             Assert.That(waveItem.DirectReferences.Any(reference => ReferenceEquals(reference.Target, enemyItem)), Is.True);
+            Assert.That(
+                weaponItem.DirectReferences.Any(reference => ReferenceEquals(reference.Target, enemyItem)),
+                Is.EqualTo(usesCanonicalRoleDirectoryNames));
+            Assert.That(weaponItem.DirectReferences.Any(reference => ReferenceEquals(reference.Target, upgradeItem)), Is.False);
             Assert.That(report.AllIssues.Any(issue => issue.Path == "Weapon.Attack" && issue.Message.Contains("does not reference")), Is.False);
             Assert.That(report.AllIssues.Any(issue => issue.Path == "Wave.Enemies" && issue.Message.Contains("does not reference")), Is.False);
         }
