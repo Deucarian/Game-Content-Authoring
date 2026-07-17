@@ -24,6 +24,41 @@ namespace Deucarian.GameContentAuthoring.Editor
             new GameContentLibraryTypeInfo("ContentPackAsset", GameContentLibraryKind.ContentPack, "Content Packs")
         };
 
+        private static readonly IReadOnlyDictionary<string, HashSet<string>> CanonicalCompanionAssetNames =
+            new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                {
+                    "AttackDefinition",
+                    new HashSet<string>(
+                        new[] { "Delivery", "Mechanics", "Presentation", "StatusEffects", "Targeting" },
+                        StringComparer.OrdinalIgnoreCase)
+                },
+                {
+                    "EnemyDefinition",
+                    new HashSet<string>(
+                        new[] { "Presentation", "Stats" },
+                        StringComparer.OrdinalIgnoreCase)
+                },
+                {
+                    "WaveDefinition",
+                    new HashSet<string>(
+                        new[] { "Entries", "Schedule" },
+                        StringComparer.OrdinalIgnoreCase)
+                },
+                {
+                    "WeaponDefinition",
+                    new HashSet<string>(
+                        new[] { "Presentation", "Stats" },
+                        StringComparer.OrdinalIgnoreCase)
+                },
+                {
+                    "RunUpgradeDefinition",
+                    new HashSet<string>(
+                        new[] { "Economy", "Effects" },
+                        StringComparer.OrdinalIgnoreCase)
+                }
+            };
+
         public static GameContentLibraryReport Scan(string rootPath)
         {
             return Scan(rootPath, null);
@@ -170,6 +205,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             if (string.IsNullOrWhiteSpace(prefix))
                 return Array.Empty<UnityEngine.Object>();
 
+            string rootFileName = System.IO.Path.GetFileNameWithoutExtension(item.Path);
+            CanonicalCompanionAssetNames.TryGetValue(rootFileName, out HashSet<string> canonicalCompanionNames);
             string[] guids = AssetDatabase.FindAssets("t:ScriptableObject", new[] { item.Folder });
             var objects = new List<UnityEngine.Object>();
             var seen = new HashSet<UnityEngine.Object>();
@@ -183,7 +220,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                     continue;
 
                 string fileName = System.IO.Path.GetFileNameWithoutExtension(path);
-                if (string.IsNullOrWhiteSpace(fileName) || !fileName.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase))
+                bool legacyCompanion = !string.IsNullOrWhiteSpace(fileName) &&
+                                       fileName.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase);
+                bool canonicalCompanion = canonicalCompanionNames != null &&
+                                          !string.IsNullOrWhiteSpace(fileName) &&
+                                          canonicalCompanionNames.Contains(fileName);
+                if (!legacyCompanion && !canonicalCompanion)
                     continue;
 
                 UnityEngine.Object[] assetObjects = AssetDatabase.LoadAllAssetsAtPath(path);
