@@ -1,6 +1,6 @@
 {
   "name": "com.deucarian.game-content-authoring",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "Deucarian Game Content Authoring",
   "description": "Shared Deucarian editor shell and provider API for game content authoring packages.",
   "unity": "6000.3",
@@ -19,8 +19,8 @@
     "content"
   ],
   "dependencies": {
-    "com.deucarian.common": "0.1.0",
-    "com.deucarian.editor": "1.0.0",
-    "com.deucarian.gameplay-foundation": "0.1.0"
+    "com.deucarian.common": "0.2.1",
+    "com.deucarian.editor": "1.0.3",
+    "com.deucarian.gameplay-foundation": "0.1.1"
   }
 }
