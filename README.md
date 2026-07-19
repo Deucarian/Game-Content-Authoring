@@ -4,13 +4,13 @@ Current package version: 0.1.1
 
 Shared editor shell for Deucarian game content authoring providers.
 
-This package owns the `Tools/Deucarian/Tools & Quality/Game Content Authoring` window, provider discovery, the selected content-pack context, canonical record identity, lens orchestration, shared validation display, provider-owned edit-session orchestration, shared asset path helpers, rich preview panel primitives, and common create-result UI. Gameplay content types remain in their domain packages.
+This package owns the `Tools/Deucarian/Tools and Quality/Game Content Authoring` window, provider discovery, the selected content-pack context, canonical record identity, lens orchestration, shared validation display, provider-owned edit-session orchestration, shared asset path helpers, rich preview panel primitives, and common create-result UI. Gameplay content types remain in their domain packages.
 
 Provider packages implement `IGameContentAuthoringProvider` in an Editor assembly and register with `GameContentAuthoringProviderRegistry`.
 
 ## What This Package Owns
 
-- Main editor window and `Tools/Deucarian/Tools & Quality/Game Content Authoring` menu item.
+- Main editor window and `Tools/Deucarian/Tools and Quality/Game Content Authoring` menu item.
 - Provider selector and empty state when no provider packages are installed.
 - Shared validation/result models for authoring flows.
 - Generic adapters for displaying Gameplay Foundation `ContentValidationReport` results in editor-only authoring UI.
