@@ -11,7 +11,7 @@ namespace Deucarian.GameContentAuthoring.Editor
     public sealed class GameContentAuthoringWindow : EditorWindow
     {
         public const string WindowTitle = "Game Content Authoring";
-        public const string MenuPath = "Tools/Deucarian/Game Content Authoring";
+        public const string MenuPath = "Tools/Deucarian/Tools & Quality/Game Content Authoring";
         internal const string PackSelectionSessionStateKey = "Deucarian.GameContentAuthoring.SelectedPack";
         private Vector2 _scroll;
         private Vector2 _previewScroll;
