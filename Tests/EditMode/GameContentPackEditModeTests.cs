@@ -245,6 +245,33 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(failure.Message, Does.Contain("planned test failure"));
         }
 
+        [Test]
+        public void ActionDispatch_MapsMissingInputsAndNullProviderResultsToStableFailures()
+        {
+            GameContentPackDescriptor pack = Pack(
+                "pack.basic",
+                "Basic",
+                Array.Empty<GameContentCategoryDescriptor>(),
+                GameContentAuthoringValidationResult.Valid,
+                0);
+            var action = new GameContentActionDescriptor(
+                "validate", "Validate", "", true, "", GameContentActionKind.Validate);
+
+            Assert.That(GameContentPackActionDispatcher.Validate(null, pack).ErrorCount, Is.EqualTo(1));
+            Assert.That(GameContentPackActionDispatcher.Validate(_provider, null).ErrorCount, Is.EqualTo(1));
+            Assert.That(GameContentPackActionDispatcher.Execute(null, pack, action).Succeeded, Is.False);
+            Assert.That(GameContentPackActionDispatcher.Execute(_provider, null, action).Succeeded, Is.False);
+            Assert.That(GameContentPackActionDispatcher.Execute(_provider, pack, null).Succeeded, Is.False);
+
+            _provider.ValidationResult = null;
+            _provider.ActionResult = null;
+
+            Assert.That(GameContentPackActionDispatcher.Validate(_provider, pack).Issues[0].Message,
+                Does.Contain("no validation result"));
+            Assert.That(GameContentPackActionDispatcher.Execute(_provider, pack, action).Message,
+                Does.Contain("no action result"));
+        }
+
         private GameContentPackManifest CreateManifest(
             string assetName,
             string packId,
@@ -361,6 +388,8 @@ namespace Deucarian.GameContentAuthoring.Tests
             public Dictionary<string, IReadOnlyList<GameContentRecordDescriptor>> Records { get; } =
                 new Dictionary<string, IReadOnlyList<GameContentRecordDescriptor>>(StringComparer.OrdinalIgnoreCase);
             public GameContentActionResult ActionResult { get; set; } = GameContentActionResult.Success("Done");
+            public GameContentAuthoringValidationResult ValidationResult { get; set; } =
+                GameContentAuthoringValidationResult.Valid;
             public bool ThrowOnExecute { get; set; }
 
             public void OnSelected() { }
@@ -373,7 +402,7 @@ namespace Deucarian.GameContentAuthoring.Tests
                 Records.TryGetValue(packId ?? string.Empty, out IReadOnlyList<GameContentRecordDescriptor> records)
                     ? records
                     : Array.Empty<GameContentRecordDescriptor>();
-            public GameContentAuthoringValidationResult ValidatePack(string packId) => GameContentAuthoringValidationResult.Valid;
+            public GameContentAuthoringValidationResult ValidatePack(string packId) => ValidationResult;
 
             public GameContentActionResult ExecuteAction(string packId, string actionId)
             {
