@@ -98,6 +98,7 @@ namespace Deucarian.GameContentAuthoring.Tests
 
             GameContentPackContext selected = state.Select(catalog, neonKey);
             Assert.That(selected.Pack.PackId, Is.EqualTo("neon"));
+            Assert.That(state.SelectedKey, Is.EqualTo(neonKey));
             Assert.That(state.Refresh(catalog).Pack.PackId, Is.EqualTo("neon"));
 
             var basicOnly = new TestPackProvider(
@@ -105,6 +106,7 @@ namespace Deucarian.GameContentAuthoring.Tests
                 new[] { Pack("basic", "Basic", GameContentPackAccessDescriptor.ReadOnlyJson) });
             GameContentPackContext fallback = state.Refresh(GameContentPackCatalog.Build(new[] { basicOnly }));
             Assert.That(fallback.Pack.PackId, Is.EqualTo("basic"));
+            Assert.That(state.SelectedKey, Is.EqualTo(fallback.Pack.StableKey));
         }
 
         [Test]
@@ -171,6 +173,23 @@ namespace Deucarian.GameContentAuthoring.Tests
             Assert.That(Lens("attack", GameContentRecordCapabilities.Attack).Matches(selection.Resolve(context)), Is.True);
             Assert.That(Lens("weapon", GameContentRecordCapabilities.Weapon).Matches(selection.Resolve(context)), Is.True);
             Assert.That(selection.Resolve(context).CanonicalKey, Is.EqualTo(record.CanonicalKey));
+        }
+
+        [Test]
+        public void RecordSelection_ClearReleasesTheOwnedCanonicalIdentity()
+        {
+            GameContentRecordDescriptor record = Record(
+                "basic",
+                "weapon.arcane-wand",
+                GameContentRecordCapabilities.Weapon);
+            var selection = new GameContentRecordSelectionState();
+
+            selection.Select(record);
+            Assert.That(selection.SelectedKey, Is.EqualTo(record.CanonicalKey));
+
+            selection.Clear();
+            Assert.That(selection.SelectedKey, Is.Null);
+            Assert.That(selection.Resolve(null), Is.Null);
         }
 
         [Test]
