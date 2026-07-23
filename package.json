@@ -20,7 +20,7 @@
   ],
   "dependencies": {
     "com.deucarian.common": "0.2.1",
-    "com.deucarian.editor": "1.0.3",
+    "com.deucarian.editor": "1.0.5",
     "com.deucarian.gameplay-foundation": "0.1.1"
   }
 }
