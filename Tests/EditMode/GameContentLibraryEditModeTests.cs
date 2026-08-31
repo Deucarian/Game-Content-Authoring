@@ -44,7 +44,7 @@ namespace Deucarian.GameContentAuthoring.Tests
         {
             GameContentAuthoringProviderRegistry.Register(new GameContentLibraryProvider());
 
-            Assert.That(GameContentAuthoringWindow.MenuPath, Is.EqualTo("Tools/Deucarian/Tools and Quality/Game Content Authoring"));
+            Assert.That(GameContentAuthoringWindow.MenuPath, Is.EqualTo("Tools/Deucarian/Authoring/Game Content..."));
             Assert.That(GameContentAuthoringProviderRegistry.IsProviderRegistered(GameContentLibraryProvider.ContentLibraryProviderId), Is.True);
         }
 
