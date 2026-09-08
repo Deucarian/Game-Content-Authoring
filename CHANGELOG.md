@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 - Unreleased
+
+- Compose edit-session ownership, validation, reference policies, transactions and focused field renderers. Keep per-window/session draft state and preserve public authoring contracts.
+- Own each editor window's shared-session connection; closing one window no longer resets another window's edit session.
+
 ## 0.1.1 - 2026-07-17
 
 - Applied the coordinated portfolio governance metadata and aligned exact Deucarian dependencies.
