@@ -7,18 +7,9 @@ using UnityEngine;
 
 namespace Deucarian.GameContentAuthoring.Editor
 {
-    public enum GameContentAuthoringActionPreviewMode
+    public enum GameContentAuthoringActionPreviewRenderMode
     {
-        Static = 0,
-        Projectile = 1,
-        Hitscan = 2,
-        Area = 3,
-        Aura = 4
+        Game = 0,
+        Debug = 1
     }
-
-
-
-
-
-
 }
