@@ -24,6 +24,68 @@ namespace Deucarian.GameContentAuthoring.Editor.Tests
         }
 
         [Test]
+        public void ClosingOneWorkspaceViewDoesNotResetAnotherViewsSharedSession()
+        {
+            StructuredFixtureProvider provider = NewProvider();
+            GameContentActiveEditSession active = Begin(provider).Session;
+            int firstRefreshes = 0, secondRefreshes = 0;
+            IDisposable first = _coordinator.AttachView(() => firstRefreshes++);
+            IDisposable second = _coordinator.AttachView(() => secondRefreshes++);
+            first.Dispose();
+            first.Dispose();
+            Assert.That(_coordinator.ActiveSourceCount, Is.EqualTo(1));
+            Assert.That(_coordinator.Apply(active, "name", GameContentFieldValue.FromString("Still editing")).Succeeded, Is.True);
+            Assert.That(_coordinator.Commit(active, true).Succeeded, Is.True);
+            Assert.That(firstRefreshes, Is.Zero);
+            Assert.That(secondRefreshes, Is.GreaterThan(0));
+            second.Dispose();
+            second.Dispose();
+            Assert.That(_coordinator.ActiveSourceCount, Is.Zero);
+        }
+
+        [Test]
+        public void RefreshObserverFailureCannotInvalidateCompletedSourceTransactions()
+        {
+            StructuredFixtureProvider provider = NewProvider();
+            GameContentActiveEditSession active = Begin(provider).Session;
+            int notified = 0;
+            _coordinator.RefreshRequested += () => throw new InvalidOperationException("view unavailable");
+            _coordinator.RefreshRequested += () => notified++;
+            Assert.That(_coordinator.Apply(active, "name", GameContentFieldValue.FromString("Saved")).Succeeded, Is.True);
+
+            Assert.That(_coordinator.Commit(active, true).Succeeded, Is.True);
+            Assert.That(active.State, Is.EqualTo(GameContentEditSessionState.Committed));
+            Assert.That(provider.Source.Name, Is.EqualTo("Saved"));
+            Assert.That(active.Recovery, Is.Null);
+            Assert.That(active.Message, Does.Contain("view could not refresh"));
+            Assert.That(notified, Is.EqualTo(1));
+
+            Assert.That(_coordinator.Rollback(active).Succeeded, Is.True);
+            Assert.That(active.State, Is.EqualTo(GameContentEditSessionState.RolledBack));
+            Assert.That(active.Recovery, Is.Null);
+            Assert.That(provider.Source.Name, Is.EqualTo("Fixture"));
+            Assert.That(_coordinator.ActiveSourceCount, Is.Zero);
+            Assert.That(notified, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void WorkbenchDraftsBelongToTheirWindowAndSession()
+        {
+            StructuredFixtureProvider provider = NewProvider();
+            GameContentActiveEditSession active = Begin(provider).Session;
+            var firstWindow = new GameContentEditWorkbenchState();
+            var secondWindow = new GameContentEditWorkbenchState();
+            firstWindow.ForSession(active).CollectionAddDrafts["tags"] = GameContentFieldValue.FromString("Draft");
+            Assert.That(firstWindow.ForSession(active).CollectionAddDrafts["tags"].StringValue, Is.EqualTo("Draft"));
+            Assert.That(secondWindow.ForSession(active).CollectionAddDrafts, Is.Empty);
+            Assert.That(_coordinator.Cancel(active).Succeeded, Is.True);
+            GameContentActiveEditSession reopened = Begin(provider).Session;
+            Assert.That(firstWindow.ForSession(reopened).CollectionAddDrafts, Is.Empty);
+            firstWindow.Clear();
+            Assert.That(firstWindow.ForSession(active).CollectionAddDrafts, Is.Empty);
+        }
+
+        [Test]
         public void Coordinator_MixedHistoryUndoRedoBranchCommitRollbackAndFreshKeys()
         {
             StructuredFixtureProvider provider = NewProvider();

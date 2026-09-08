@@ -251,8 +251,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (_editSessions != null) return;
             _editSessions = GameContentEditSessionCoordinator.Shared;
-            _editSessions.RefreshRequested -= OnEditSessionRefreshRequested;
-            _editSessions.RefreshRequested += OnEditSessionRefreshRequested;
+            _editSessionView = _editSessions.AttachView(OnEditSessionRefreshRequested);
         }
 
         private void OnEditSessionRefreshRequested()
