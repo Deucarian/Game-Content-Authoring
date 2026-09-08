@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 - 2026-09-09
+
+- Separate library validation, reachability and member access from discovery. Compose list/detail/graph views and scene/overlay preview rendering.
+- Extract existing-item presentation and per-window selection ownership without changing provider contracts or game packages.
+
 ## 0.2.0 - Unreleased
 
 - Compose edit-session ownership, validation, reference policies, transactions and focused field renderers. Keep per-window/session draft state and preserve public authoring contracts.

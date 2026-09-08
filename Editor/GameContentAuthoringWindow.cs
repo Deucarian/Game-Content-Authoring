@@ -20,7 +20,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         private GameContentAuthoringValidationResult _lastValidation;
         private string _previewStatus = "Preview idle";
         private GameContentLibraryReport _contentLibraryReport;
-        private readonly Dictionary<string, string> _selectedExistingItemKeys = new Dictionary<string, string>(System.StringComparer.Ordinal);
+        private readonly GameContentExistingItemSelection _existingItemSelection = new GameContentExistingItemSelection();
+        private GameContentExistingItemsView _existingItemsView;
         private readonly GameContentPackSelectionState _packSelection = new GameContentPackSelectionState();
         private readonly GameContentRecordSelectionState _recordSelection = new GameContentRecordSelectionState();
         private GameContentPackCatalog _packCatalog;
@@ -349,14 +350,14 @@ namespace Deucarian.GameContentAuthoring.Editor
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    DeucarianEditorStatusBadge.Draw("Selected asset", GetItemStatus(selectedItem), GUILayout.Width(112f));
+                    DeucarianEditorStatusBadge.Draw("Selected asset", GameContentExistingItemPresentation.GetItemStatus(selectedItem), GUILayout.Width(112f));
                     GUILayout.FlexibleSpace();
                     DeucarianEditorMiniToolbar.PingButton(selectedItem.Asset);
                     DeucarianEditorMiniToolbar.SelectButton(selectedItem.Asset);
                 }
 
                 EditorGUILayout.LabelField(selectedItem.DisplayName, DeucarianEditorStyles.SectionTitle);
-                EditorGUILayout.LabelField(GetIdLabel(selectedItem) + " - " + selectedItem.Category, DeucarianEditorStyles.MutedLabel);
+                EditorGUILayout.LabelField(GameContentExistingItemPresentation.GetIdLabel(selectedItem) + " - " + selectedItem.Category, DeucarianEditorStyles.MutedLabel);
             });
 
             var context = new GameContentAuthoringPreviewContext(
@@ -377,7 +378,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             _lastValidation = null;
             _previewStatus = "Preview idle";
             _contentLibraryReport = null;
-            _selectedExistingItemKeys.Clear();
+            _existingItemSelection.Clear();
             _scroll = Vector2.zero;
             _previewScroll = Vector2.zero;
             GUI.FocusControl(null);

@@ -114,8 +114,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                     typeInfo.Kind,
                     typeInfo.Category,
                     path,
-                    ReadStringMember(main, "Id", string.Empty),
-                    ReadStringMember(main, "DisplayName", main.name));
+                    GameContentLibraryMemberAccess.ReadStringMember(main, "Id", string.Empty),
+                    GameContentLibraryMemberAccess.ReadStringMember(main, "DisplayName", main.name));
                 items.Add(item);
 
                 UnityEngine.Object[] allObjects = AssetDatabase.LoadAllAssetsAtPath(path);
@@ -128,7 +128,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
 
             BuildReferences(items, objectMap);
-            ValidateItems(items, reportIssues);
+            GameContentLibraryValidation.ValidateItems(items, reportIssues);
             return BuildReport(normalizedRoot, items, reportIssues);
         }
 
@@ -305,330 +305,20 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
         }
 
-        private static void ValidateItems(IReadOnlyList<GameContentLibraryItem> items, List<GameContentLibraryIssue> reportIssues)
-        {
-            for (int i = 0; i < items.Count; i++)
-            {
-                GameContentLibraryItem item = items[i];
-                if (string.IsNullOrWhiteSpace(item.Id))
-                    item.AddIssue(GameContentLibraryIssue.Error("ID", "Stable ID is missing."));
-                if (string.IsNullOrWhiteSpace(item.DisplayName))
-                    item.AddIssue(GameContentLibraryIssue.Warning("Display Name", "Display name is empty."));
-
-                AddDomainValidatorIssues(item);
-                AddTypeSpecificIssues(item);
-            }
-
-            AddDuplicateIdIssues(items, reportIssues);
-            AddUnusedAssetIssues(items);
-            AddContentSetGraphIssues(items);
-        }
-
-        private static void AddDomainValidatorIssues(GameContentLibraryItem item)
-        {
-            Type validatorType = FindValidatorType(item.Asset.GetType());
-            if (validatorType == null) return;
-
-            MethodInfo validateMethod = validatorType
-                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .FirstOrDefault(method => string.Equals(method.Name, "Validate", StringComparison.Ordinal) && HasSingleAssignableParameter(method, item.Asset.GetType()));
-            if (validateMethod == null) return;
-
-            try
-            {
-                object result = validateMethod.Invoke(null, new[] { item.Asset });
-                AddIssuesFromValidationResult(item, result);
-            }
-            catch (Exception ex)
-            {
-                item.AddIssue(GameContentLibraryIssue.Warning("Domain Validator", "Could not run domain validator: " + ex.GetBaseException().Message));
-            }
-        }
-
-        private static Type FindValidatorType(Type assetType)
-        {
-            string[] validatorNames =
-            {
-                assetType.Namespace + ".AttackRecipeValidator",
-                assetType.Namespace + ".EnemyDefinitionValidator",
-                assetType.Namespace + ".WaveDefinitionValidator",
-                assetType.Namespace + ".WeaponDefinitionValidator",
-                assetType.Namespace + ".RunUpgradeDefinitionValidator",
-                assetType.Namespace + ".GameContentSetValidator",
-                assetType.Namespace + ".GameContentPackValidator"
-            };
-
-            Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            for (int i = 0; i < validatorNames.Length; i++)
-            {
-                if (string.IsNullOrWhiteSpace(validatorNames[i])) continue;
-                for (int j = 0; j < assemblies.Length; j++)
-                {
-                    Type type = assemblies[j].GetType(validatorNames[i], false);
-                    if (type != null && HasApplicableValidateMethod(type, assetType)) return type;
-                }
-            }
-
-            return null;
-        }
-
-        private static bool HasApplicableValidateMethod(Type validatorType, Type assetType)
-        {
-            MethodInfo method = validatorType
-                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .FirstOrDefault(candidate => string.Equals(candidate.Name, "Validate", StringComparison.Ordinal) && HasSingleAssignableParameter(candidate, assetType));
-            return method != null;
-        }
-
-        private static bool HasSingleAssignableParameter(MethodInfo method, Type assetType)
-        {
-            ParameterInfo[] parameters = method.GetParameters();
-            return parameters.Length == 1 && parameters[0].ParameterType.IsAssignableFrom(assetType);
-        }
-
-        private static void AddIssuesFromValidationResult(GameContentLibraryItem item, object result)
-        {
-            if (result == null) return;
-            object issues = ReadMemberValue(result, "Issues");
-            if (!(issues is IEnumerable enumerable)) return;
-
-            foreach (object issue in enumerable)
-            {
-                if (issue == null) continue;
-                string path = ReadStringMember(issue, "Path", "Domain Validator");
-                string message = ReadStringMember(issue, "Message", "Validation issue.");
-                object severityValue = ReadMemberValue(issue, "Severity");
-                GameContentAuthoringValidationSeverity severity = ParseSeverity(severityValue);
-                item.AddIssue(new GameContentLibraryIssue(severity, path, message));
-            }
-        }
-
-        private static GameContentAuthoringValidationSeverity ParseSeverity(object severityValue)
-        {
-            if (severityValue == null) return GameContentAuthoringValidationSeverity.Warning;
-            string value = severityValue.ToString();
-            if (string.Equals(value, "Error", StringComparison.OrdinalIgnoreCase) || string.Equals(value, "Blocker", StringComparison.OrdinalIgnoreCase))
-                return GameContentAuthoringValidationSeverity.Error;
-            if (string.Equals(value, "Info", StringComparison.OrdinalIgnoreCase))
-                return GameContentAuthoringValidationSeverity.Info;
-            return GameContentAuthoringValidationSeverity.Warning;
-        }
-
-        private static void AddTypeSpecificIssues(GameContentLibraryItem item)
-        {
-            if (item.Kind == GameContentLibraryKind.Weapon && item.DirectReferences.All(reference => reference.Target.Kind != GameContentLibraryKind.Attack))
-                item.AddIssue(GameContentLibraryIssue.Error("Weapon.Attack", item.DisplayName + " does not reference a discovered attack asset."));
-
-            if (item.Kind == GameContentLibraryKind.Wave && item.DirectReferences.All(reference => reference.Target.Kind != GameContentLibraryKind.Enemy))
-                item.AddIssue(GameContentLibraryIssue.Warning("Wave.Enemies", item.DisplayName + " does not reference any discovered enemy assets."));
-
-            if (item.Kind == GameContentLibraryKind.ContentPack)
-            {
-                bool hasDefaultContentSet = ReadMemberValue(item.Asset, "DefaultContentSet") != null;
-                if (!hasDefaultContentSet)
-                    item.AddIssue(GameContentLibraryIssue.Error("ContentPack.DefaultContentSet", item.DisplayName + " is missing its default Game / Run Content Set."));
-
-                if (CountMemberReferences(item.Asset, "ContentSets", GameContentLibraryKind.ContentSet, item) == 0)
-                    item.AddIssue(GameContentLibraryIssue.Error("ContentPack.ContentSets", item.DisplayName + " must include at least one discovered Game / Run Content Set."));
-                return;
-            }
-
-            if (item.Kind != GameContentLibraryKind.ContentSet) return;
-
-            bool hasStartingWeapon = ReadMemberValue(item.Asset, "StartingWeapon") != null;
-            if (!hasStartingWeapon)
-                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.StartingWeapon", item.DisplayName + " is missing its starting weapon/tower."));
-
-            if (CountMemberReferences(item.Asset, "AvailableWeapons", GameContentLibraryKind.Weapon, item) == 0)
-                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.AvailableWeapons", item.DisplayName + " has an empty available weapon/tower list."));
-            if (CountMemberReferences(item.Asset, "EnemyPool", GameContentLibraryKind.Enemy, item) == 0)
-                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.EnemyPool", item.DisplayName + " has an empty enemy pool."));
-            if (CountMemberReferences(item.Asset, "WaveSet", GameContentLibraryKind.Wave, item) == 0)
-                item.AddIssue(GameContentLibraryIssue.Error("ContentSet.WaveSet", item.DisplayName + " has an empty wave/spawn set list."));
-            if (CountMemberReferences(item.Asset, "UpgradePool", GameContentLibraryKind.Upgrade, item) == 0)
-                item.AddIssue(GameContentLibraryIssue.Warning("ContentSet.UpgradePool", item.DisplayName + " has an empty upgrade pool. The content set can still be valid, but progression will be limited."));
-        }
-
-        private static int CountMemberReferences(UnityEngine.Object asset, string memberName, GameContentLibraryKind expectedKind, GameContentLibraryItem item)
-        {
-            object value = ReadMemberValue(asset, memberName);
-            if (value == null)
-                return item.DirectReferences.Count(reference => reference.Target.Kind == expectedKind);
-
-            if (value is UnityEngine.Object single)
-                return single == null ? 0 : 1;
-
-            if (!(value is IEnumerable enumerable))
-                return 0;
-
-            int count = 0;
-            foreach (object element in enumerable)
-            {
-                if (element is UnityEngine.Object unityObject && unityObject != null)
-                    count++;
-            }
-
-            return count;
-        }
-
-        private static void AddDuplicateIdIssues(IReadOnlyList<GameContentLibraryItem> items, List<GameContentLibraryIssue> reportIssues)
-        {
-            var duplicates = items
-                .Where(item => !string.IsNullOrWhiteSpace(item.Id))
-                .GroupBy(item => item.Category + "::" + item.Id, StringComparer.OrdinalIgnoreCase)
-                .Where(group => group.Count() > 1)
-                .ToArray();
-
-            for (int i = 0; i < duplicates.Length; i++)
-            {
-                string id = duplicates[i].First().Id;
-                string category = duplicates[i].First().Category;
-                string paths = string.Join(", ", duplicates[i].Select(item => item.Path).OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
-                string message = "Duplicate " + category + " ID '" + id + "' appears in " + duplicates[i].Count().ToString(CultureInfo.InvariantCulture) + " assets: " + paths + ".";
-                reportIssues.Add(GameContentLibraryIssue.Error("Duplicate IDs", message));
-                foreach (GameContentLibraryItem item in duplicates[i])
-                    item.AddIssue(GameContentLibraryIssue.Error("ID", message));
-            }
-        }
-
-        private static void AddUnusedAssetIssues(IReadOnlyList<GameContentLibraryItem> items)
-        {
-            for (int i = 0; i < items.Count; i++)
-            {
-                GameContentLibraryItem item = items[i];
-                if (item.Kind == GameContentLibraryKind.ContentSet || item.Kind == GameContentLibraryKind.ContentPack) continue;
-                if (item.ReverseReferences.Count == 0)
-                    item.AddIssue(GameContentLibraryIssue.Info("References", "No authored assets currently reference this asset."));
-            }
-        }
-
-        private static void AddContentSetGraphIssues(IReadOnlyList<GameContentLibraryItem> items)
-        {
-            foreach (GameContentLibraryItem contentSet in items.Where(item => item.Kind == GameContentLibraryKind.ContentSet))
-            {
-                HashSet<GameContentLibraryItem> membership = GetContentSetMembership(contentSet);
-                foreach (GameContentLibraryItem weapon in membership.Where(item => item.Kind == GameContentLibraryKind.Weapon))
-                {
-                    if (weapon.DirectReferences.All(reference => reference.Target.Kind != GameContentLibraryKind.Attack))
-                        contentSet.AddIssue(GameContentLibraryIssue.Error("ContentSet.Weapons", weapon.DisplayName + " has no discovered attack reference."));
-                }
-
-                foreach (GameContentLibraryItem wave in membership.Where(item => item.Kind == GameContentLibraryKind.Wave))
-                {
-                    if (wave.DirectReferences.All(reference => reference.Target.Kind != GameContentLibraryKind.Enemy))
-                        contentSet.AddIssue(GameContentLibraryIssue.Warning("ContentSet.Waves", wave.DisplayName + " has no discovered enemy references."));
-                }
-
-                foreach (GameContentLibraryItem upgrade in membership.Where(item => item.Kind == GameContentLibraryKind.Upgrade))
-                {
-                    for (int i = 0; i < upgrade.DirectReferences.Count; i++)
-                    {
-                        GameContentLibraryItem target = upgrade.DirectReferences[i].Target;
-                        if (!membership.Contains(target) && target.Kind != GameContentLibraryKind.ContentSet)
-                            contentSet.AddIssue(GameContentLibraryIssue.Warning("ContentSet.Upgrades", upgrade.DisplayName + " targets " + target.DisplayName + ", which is outside this content set."));
-                    }
-                }
-            }
-
-            AddContentPackGraphIssues(items);
-        }
-
-        private static void AddContentPackGraphIssues(IReadOnlyList<GameContentLibraryItem> items)
-        {
-            foreach (GameContentLibraryItem contentPack in items.Where(item => item.Kind == GameContentLibraryKind.ContentPack))
-            {
-                HashSet<GameContentLibraryItem> membership = GetContentPackMembership(contentPack);
-                if (membership.All(item => item.Kind != GameContentLibraryKind.ContentSet))
-                {
-                    contentPack.AddIssue(GameContentLibraryIssue.Error("ContentPack.ContentSets", "Pack does not reference any discovered Game / Run Content Sets."));
-                    continue;
-                }
-
-                foreach (GameContentLibraryItem contentSet in membership.Where(item => item.Kind == GameContentLibraryKind.ContentSet))
-                {
-                    if (contentSet.ErrorCount > 0)
-                        contentPack.AddIssue(GameContentLibraryIssue.Error("ContentPack.ContentSets", contentSet.DisplayName + " has blocking validation issues."));
-                    else if (contentSet.WarningCount > 0)
-                        contentPack.AddIssue(GameContentLibraryIssue.Warning("ContentPack.ContentSets", contentSet.DisplayName + " has validation warnings."));
-                }
-            }
-        }
-
         internal static HashSet<GameContentLibraryItem> GetContentSetMembership(GameContentLibraryItem contentSet)
         {
-            HashSet<GameContentLibraryItem> membership = new HashSet<GameContentLibraryItem>();
-            if (contentSet == null) return membership;
-            membership.Add(contentSet);
-            for (int i = 0; i < contentSet.DirectReferences.Count; i++)
-            {
-                GameContentLibraryItem direct = contentSet.DirectReferences[i].Target;
-                if (direct == null) continue;
-                membership.Add(direct);
-                if (direct.Kind != GameContentLibraryKind.Weapon && direct.Kind != GameContentLibraryKind.Wave)
-                    continue;
-                for (int j = 0; j < direct.DirectReferences.Count; j++)
-                    membership.Add(direct.DirectReferences[j].Target);
-            }
-
-            return membership;
+            return GameContentLibraryReachability.GetContentSetMembership(contentSet);
         }
 
         internal static HashSet<GameContentLibraryItem> GetContentPackMembership(GameContentLibraryItem contentPack)
         {
-            HashSet<GameContentLibraryItem> membership = new HashSet<GameContentLibraryItem>();
-            if (contentPack == null) return membership;
-            membership.Add(contentPack);
-            for (int i = 0; i < contentPack.DirectReferences.Count; i++)
-            {
-                GameContentLibraryItem direct = contentPack.DirectReferences[i].Target;
-                if (direct == null) continue;
-                membership.Add(direct);
-                if (direct.Kind != GameContentLibraryKind.ContentSet) continue;
-                membership.UnionWith(GetContentSetMembership(direct));
-            }
-
-            return membership;
+            return GameContentLibraryReachability.GetContentPackMembership(contentPack);
         }
 
         internal static HashSet<GameContentLibraryItem> GetReachableItems(GameContentLibraryItem root, int depth)
         {
-            HashSet<GameContentLibraryItem> visited = new HashSet<GameContentLibraryItem>();
-            if (root == null) return visited;
-            CollectReachable(root, depth, visited);
-            return visited;
+            return GameContentLibraryReachability.GetReachableItems(root, depth);
         }
 
-        private static void CollectReachable(GameContentLibraryItem item, int depth, HashSet<GameContentLibraryItem> visited)
-        {
-            if (item == null || depth < 0 || !visited.Add(item)) return;
-            for (int i = 0; i < item.DirectReferences.Count; i++)
-                CollectReachable(item.DirectReferences[i].Target, depth - 1, visited);
-        }
-
-        private static string ReadStringMember(object target, string memberName, string fallback)
-        {
-            object value = ReadMemberValue(target, memberName);
-            if (value is string text)
-                return string.IsNullOrWhiteSpace(text) ? fallback : text;
-            return fallback;
-        }
-
-        private static object ReadMemberValue(object target, string memberName)
-        {
-            if (target == null || string.IsNullOrWhiteSpace(memberName)) return null;
-            Type type = target.GetType();
-            while (type != null)
-            {
-                PropertyInfo property = type.GetProperty(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase);
-                if (property != null && property.GetIndexParameters().Length == 0)
-                    return property.GetValue(target, null);
-                FieldInfo field = type.GetField(memberName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase);
-                if (field != null)
-                    return field.GetValue(target);
-                type = type.BaseType;
-            }
-
-            return null;
-        }
     }
 }
