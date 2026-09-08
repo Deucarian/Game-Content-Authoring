@@ -26,6 +26,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         private GameContentPackCatalog _packCatalog;
         private GameContentPackContext _packContext;
         private GameContentEditSessionCoordinator _editSessions;
+        private IDisposable _editSessionView;
+        private readonly GameContentEditWorkbenchState _editWorkbenchState = new GameContentEditWorkbenchState();
 
         [MenuItem(MenuPath)]
         public static void Open()
@@ -70,11 +72,12 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         private void OnDisable()
         {
-            StopSelectedProvider();
-            if (_editSessions != null)
+            try { StopSelectedProvider(); }
+            finally
             {
-                _editSessions.RefreshRequested -= OnEditSessionRefreshRequested;
-                _editSessions.Reset();
+                _editWorkbenchState.Clear();
+                _editSessionView?.Dispose();
+                _editSessionView = null;
                 _editSessions = null;
             }
         }
@@ -263,7 +266,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                 () => ClearSelectedExistingItem(provider),
                 SelectRecord,
                 OpenLens,
-                Repaint);
+                Repaint,
+                _editWorkbenchState);
 
             surfaceProvider.DrawCustomAuthoringSurface(surfaceContext);
             EditorGUILayout.EndVertical();
