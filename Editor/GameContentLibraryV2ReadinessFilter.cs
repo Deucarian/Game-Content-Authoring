@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Deucarian.Editor;
 using UnityEditor;
@@ -7,18 +8,11 @@ using UnityEngine;
 
 namespace Deucarian.GameContentAuthoring.Editor
 {
-    public enum GameContentAuthoringActionPreviewMode
+    public enum GameContentLibraryV2ReadinessFilter
     {
-        Static = 0,
-        Projectile = 1,
-        Hitscan = 2,
-        Area = 3,
-        Aura = 4
+        All = 0,
+        Ready = 1,
+        Warnings = 2,
+        Blockers = 3
     }
-
-
-
-
-
-
 }
