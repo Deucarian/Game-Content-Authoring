@@ -30,7 +30,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             Action clearSelection,
             Action<GameContentRecordDescriptor> selectRecord,
             Action<string, GameContentRecordDescriptor> openLens,
-            Action requestRepaint)
+            Action requestRepaint,
+            GameContentEditWorkbenchState editWorkbenchState = null)
         {
             Window = window;
             Provider = provider;
@@ -44,6 +45,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             Lenses = lenses ?? Array.Empty<GameContentLensDescriptor>();
             SelectedRecord = selectedRecord;
             EditSessions = editSessions;
+            EditWorkbenchState = editWorkbenchState ?? new GameContentEditWorkbenchState();
             _refreshLibrary = refreshLibrary;
             _selectItem = selectItem;
             _clearSelection = clearSelection;
@@ -73,6 +75,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             PackContext == null ? Array.Empty<GameContentRecordDescriptor>() : PackContext.Records;
         public GameContentRecordDescriptor SelectedRecord { get; }
         public GameContentEditSessionCoordinator EditSessions { get; }
+        public GameContentEditWorkbenchState EditWorkbenchState { get; }
         public bool HasSelectedItem => SelectedItem != null;
         public bool HasSelectedRecord => SelectedRecord != null;
         public bool CanCreate => PackContext != null && PackContext.Access.CanCreate;
