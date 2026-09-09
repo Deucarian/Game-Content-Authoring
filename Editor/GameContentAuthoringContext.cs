@@ -180,7 +180,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                             : PackContext.Access.DisabledReason
                         : "Fix blocking validation issues before creating this asset.");
             using (new EditorGUI.DisabledScope(!enabled))
-                return GUILayout.Button(content, enabled ? DeucarianEditorButtons.PrimaryStyle : DeucarianEditorButtons.DisabledStyle, GUILayout.Height(32f));
+                return DeucarianEditorActionGUI.Button(content, enabled ? DeucarianEditorButtons.PrimaryStyle : DeucarianEditorButtons.DisabledStyle, GUILayout.Height(32f));
         }
 
         public void SetCreationResult(GameContentCreationResult result)

@@ -15,10 +15,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentAuthoringSurfaceContext context,
             GameContentActiveEditSession active)
         {
-            EditorGUILayout.LabelField("Change Review", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Change Review", DeucarianEditorStyles.SectionTitle);
             if (active.Changes.Count == 0)
             {
-                EditorGUILayout.LabelField("No staged changes.", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField("No staged changes.", DeucarianEditorStyles.MutedLabel);
                 return;
             }
 
@@ -33,7 +33,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     context.EditSessions.GetStructuredCollectionChangeReview(active, change);
                 DeucarianEditorCards.DrawInlineCard(() =>
                 {
-                    EditorGUILayout.LabelField(change.DisplayName, EditorStyles.boldLabel);
+                    DeucarianEditorTextGUI.LabelField(change.DisplayName, DeucarianEditorWorkbenchGUI.BoldLabelStyle);
                     if (structuredReview != null)
                     {
                         DrawStructuredCollectionReview(structuredReview);
@@ -100,10 +100,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             for (int i = 0; i < review.ValidationFindings.Count; i++)
             {
                 GameContentAuthoringValidationIssue issue = review.ValidationFindings[i];
-                EditorGUILayout.HelpBox(issue.Path + ": " + issue.Message, GameContentEditFieldRenderer.ToMessageType(issue.Severity));
+                DeucarianEditorTextGUI.HelpBox(issue.Path + ": " + issue.Message, GameContentEditFieldRenderer.ToMessageType(issue.Severity));
             }
             GameContentRecordLensBrowser.DrawRow("Runtime Impact", review.RuntimeImpact.ToString());
-            EditorGUILayout.HelpBox(
+            DeucarianEditorTextGUI.HelpBox(
                 "Adding or removing an embedded row changes only its parent source. It does not create or delete a canonical authored record, and stable identities remain read-only.",
                 MessageType.Info);
         }
@@ -139,7 +139,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentRecordLensBrowser.DrawRow("Runtime Impact", review.RuntimeImpact.ToString());
             if (review.ContainsRecordReferences)
             {
-                EditorGUILayout.HelpBox(
+                DeucarianEditorTextGUI.HelpBox(
                     "Removing a reference changes only this collection. It does not delete or modify the target record.",
                     MessageType.Info);
             }

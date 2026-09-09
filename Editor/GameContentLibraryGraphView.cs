@@ -26,7 +26,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("Graph / Readiness", DeucarianEditorStyles.SectionTitle);
+                DeucarianEditorTextGUI.LabelField("Graph / Readiness", DeucarianEditorStyles.SectionTitle);
                 GUILayout.FlexibleSpace();
                 int mode = DeucarianEditorSegmentedControl.Draw(state.DebugGraph ? 1 : 0, GraphModeLabels, GUILayout.Width(132f));
                 state.DebugGraph = mode == 1;
@@ -59,7 +59,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             DeucarianEditorCards.DrawInlineCard(() =>
             {
                 DeucarianEditorStatusBadge.Draw(report != null && report.Items.Count == 0 ? "Empty" : "Select", DeucarianEditorStatus.Info, GUILayout.Width(72f));
-                EditorGUILayout.LabelField(report != null && report.Items.Count == 0 ? "No authored content found." : "Select an asset to see relationships.", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(report != null && report.Items.Count == 0 ? "No authored content found." : "Select an asset to see relationships.", DeucarianEditorStyles.MutedLabel);
             });
 
             DeucarianEditorDiagnosticsDrawer.Draw(
@@ -82,8 +82,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             DeucarianEditorCards.DrawInlineCard(() =>
             {
                 DeucarianEditorStatusBadge.Draw(GameContentLibraryV2Model.GetKindLabel(selected.Kind), DeucarianEditorStatus.Info, GUILayout.Width(128f));
-                EditorGUILayout.LabelField(selected.DisplayName, DeucarianEditorStyles.SectionTitle);
-                EditorGUILayout.LabelField(GameContentLibraryV2Model.GetReadinessLabel(selected), DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(selected.DisplayName, DeucarianEditorStyles.SectionTitle);
+                DeucarianEditorTextGUI.LabelField(GameContentLibraryV2Model.GetReadinessLabel(selected), DeucarianEditorStyles.MutedLabel);
             });
 
             if (edges.Count == 0)
@@ -91,14 +91,14 @@ namespace Deucarian.GameContentAuthoring.Editor
                 DeucarianEditorCards.DrawInlineCard(() =>
                 {
                     DeucarianEditorStatusBadge.Draw("No Edges", DeucarianEditorStatus.Disabled, GUILayout.Width(82f));
-                    EditorGUILayout.LabelField("No authored dependency edges found.", DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField("No authored dependency edges found.", DeucarianEditorStyles.MutedLabel);
                 });
                 return;
             }
 
             foreach (IGrouping<string, GameContentLibraryV2GraphEdge> group in edges.GroupBy(edge => edge.Relation))
             {
-                EditorGUILayout.LabelField(group.Key, DeucarianEditorStyles.SectionTitle);
+                DeucarianEditorTextGUI.LabelField(group.Key, DeucarianEditorStyles.SectionTitle);
                 foreach (GameContentLibraryV2GraphEdge edge in group)
                     DrawGraphEdge(context, state, edge);
             }

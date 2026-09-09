@@ -35,7 +35,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("Content Library", DeucarianEditorStyles.SectionTitle);
+                DeucarianEditorTextGUI.LabelField("Content Library", DeucarianEditorStyles.SectionTitle);
                 GUILayout.FlexibleSpace();
                 if (DeucarianEditorMiniToolbar.Button("Refresh", true, GUILayout.Width(62f), GUILayout.Height(22f)))
                     refresh?.Invoke();
@@ -90,15 +90,15 @@ namespace Deucarian.GameContentAuthoring.Editor
             using (new EditorGUILayout.HorizontalScope())
             {
                 IReadOnlyList<string> typeLabels = GameContentLibraryV2Model.GetTypeFilterLabels();
-                state.TypeFilterIndex = EditorGUILayout.Popup(
+                state.TypeFilterIndex = DeucarianEditorInputGUI.Popup(
                     Mathf.Clamp(state.TypeFilterIndex, 0, typeLabels.Count - 1),
                     typeLabels.ToArray(),
                     GUILayout.MinWidth(112f));
-                state.SeverityFilter = (GameContentLibraryV2SeverityFilter)EditorGUILayout.Popup(
+                state.SeverityFilter = (GameContentLibraryV2SeverityFilter)DeucarianEditorInputGUI.Popup(
                     (int)state.SeverityFilter,
                     SeverityFilterLabels,
                     GUILayout.MinWidth(96f));
-                state.ReadinessFilter = (GameContentLibraryV2ReadinessFilter)EditorGUILayout.Popup(
+                state.ReadinessFilter = (GameContentLibraryV2ReadinessFilter)DeucarianEditorInputGUI.Popup(
                     (int)state.ReadinessFilter,
                     ReadinessFilterLabels,
                     GUILayout.MinWidth(96f));
@@ -194,7 +194,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             DeucarianEditorCards.DrawInlineCard(() =>
             {
                 DeucarianEditorStatusBadge.Draw(report != null && report.Items.Count == 0 ? "Empty" : "Filtered", DeucarianEditorStatus.Info, GUILayout.Width(74f));
-                EditorGUILayout.LabelField(report != null && report.Items.Count == 0 ? "No authored content found." : "No assets match the current filters.", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(report != null && report.Items.Count == 0 ? "No authored content found." : "No assets match the current filters.", DeucarianEditorStyles.MutedLabel);
             });
         }
     }

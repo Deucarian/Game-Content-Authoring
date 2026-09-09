@@ -14,8 +14,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField(label, DeucarianEditorStyles.MutedLabel, GUILayout.Width(128f));
-                EditorGUILayout.LabelField(value ?? string.Empty, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(label, DeucarianEditorStyles.MutedLabel, GUILayout.Width(128f));
+                DeucarianEditorTextGUI.LabelField(value ?? string.Empty, DeucarianEditorStyles.MutedLabel);
             }
         }
 

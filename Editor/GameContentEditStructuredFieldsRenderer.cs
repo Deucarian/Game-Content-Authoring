@@ -21,9 +21,9 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             GameContentStructuredRowDescriptor rowDescriptor = field.StructuredCollection.RowDescriptor;
             GUILayout.Space(DeucarianEditorSpacing.Small);
-            EditorGUILayout.LabelField("Selected " + rowDescriptor.DisplayName, EditorStyles.boldLabel);
+            DeucarianEditorTextGUI.LabelField("Selected " + rowDescriptor.DisplayName, DeucarianEditorWorkbenchGUI.BoldLabelStyle);
             if (!string.IsNullOrWhiteSpace(rowDescriptor.HelpText))
-                EditorGUILayout.LabelField(rowDescriptor.HelpText, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(rowDescriptor.HelpText, DeucarianEditorStyles.MutedLabel);
             if (rowDescriptor.NativeKey != null)
             {
                 GameContentRecordLensBrowser.DrawRow(
@@ -32,7 +32,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                         ? "Not supplied"
                         : row.NativeKeyDisplayMetadata);
                 if (!string.IsNullOrWhiteSpace(rowDescriptor.NativeKey.HelpText))
-                    EditorGUILayout.LabelField(rowDescriptor.NativeKey.HelpText, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(rowDescriptor.NativeKey.HelpText, DeucarianEditorStyles.MutedLabel);
             }
 
             for (int i = 0; i < rowDescriptor.Fields.Count; i++)
@@ -41,10 +41,10 @@ namespace Deucarian.GameContentAuthoring.Editor
                 bool hasStagedValue = row.TryGetFieldValue(rowField.FieldId, out GameContentFieldValue value);
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    EditorGUILayout.LabelField(rowField.DisplayName, GUILayout.Width(128f));
+                    DeucarianEditorTextGUI.LabelField(rowField.DisplayName, GUILayout.Width(128f));
                     if (value == null && rowField.IsReadOnly)
                     {
-                        EditorGUILayout.LabelField("Not set", DeucarianEditorStyles.MutedLabel);
+                        DeucarianEditorTextGUI.LabelField("Not set", DeucarianEditorStyles.MutedLabel);
                     }
                     else if (rowField.FieldType == GameContentFieldType.RecordReference)
                     {
@@ -80,9 +80,9 @@ namespace Deucarian.GameContentAuthoring.Editor
                     }
                 }
                 if (!string.IsNullOrWhiteSpace(rowField.Description))
-                    EditorGUILayout.LabelField(rowField.Description, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(rowField.Description, DeucarianEditorStyles.MutedLabel);
                 if (rowField.IsReadOnly)
-                    EditorGUILayout.LabelField(rowField.ReadOnlyReason, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(rowField.ReadOnlyReason, DeucarianEditorStyles.MutedLabel);
                 if (hasStagedValue)
                     DrawStructuredFieldDelta(active, field.FieldId, row, rowField.FieldId, value);
                 DrawStructuredFieldValidation(
@@ -130,7 +130,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 draft = CreateDefaultStructuredDraft(descriptor.RowDescriptor);
 
             GUILayout.Space(DeucarianEditorSpacing.Small);
-            EditorGUILayout.LabelField("Add " + descriptor.RowDescriptor.DisplayName, EditorStyles.boldLabel);
+            DeucarianEditorTextGUI.LabelField("Add " + descriptor.RowDescriptor.DisplayName, DeucarianEditorWorkbenchGUI.BoldLabelStyle);
             var values = draft.ToDictionary(value => value.FieldId, value => value.Value, StringComparer.Ordinal);
             for (int i = 0; i < descriptor.RowDescriptor.Fields.Count; i++)
             {
@@ -140,7 +140,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 if (current == null) current = CreateDefaultStructuredValue(rowField);
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    EditorGUILayout.LabelField(rowField.DisplayName, GUILayout.Width(128f));
+                    DeucarianEditorTextGUI.LabelField(rowField.DisplayName, GUILayout.Width(128f));
                     if (rowField.FieldType == GameContentFieldType.RecordReference)
                     {
                         GameContentFieldValue captured = current;
@@ -176,7 +176,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GUILayout.FlexibleSpace();
                 using (new EditorGUI.DisabledScope(!enabled || !belowMaximum || !validation.Succeeded))
                 {
-                    if (GUILayout.Button(
+                    if (DeucarianEditorActionGUI.Button(
                             new GUIContent("Add Row", validation.Message),
                             GUILayout.Width(76f)))
                     {
@@ -193,7 +193,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 }
             }
             if (!validation.Succeeded && !string.IsNullOrWhiteSpace(validation.Message))
-                EditorGUILayout.LabelField(validation.Message, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(validation.Message, DeucarianEditorStyles.MutedLabel);
         }
 
         internal static void DrawStructuredReferenceSelector(
@@ -206,10 +206,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             bool enabled)
         {
             GameContentRecordReferenceValue reference = current.RecordReferenceValue;
-            EditorGUILayout.LabelField(GameContentEditReferenceRenderer.DescribeReference(reference), GUILayout.ExpandWidth(true));
+            DeucarianEditorTextGUI.LabelField(GameContentEditReferenceRenderer.DescribeReference(reference), GUILayout.ExpandWidth(true));
             using (new EditorGUI.DisabledScope(!enabled))
             {
-                if (GUILayout.Button(new GUIContent("Choose...", "Select a compatible same-pack record."), GUILayout.Width(70f)))
+                if (DeucarianEditorActionGUI.Button(new GUIContent("Choose...", "Select a compatible same-pack record."), GUILayout.Width(70f)))
                 {
                     Rect rect = GUILayoutUtility.GetLastRect();
                     GameContentReferenceCandidateSet targets = context.EditSessions.GetStructuredReferenceCandidates(
@@ -243,10 +243,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             bool enabled,
             Action<GameContentRecordReferenceValue> selected)
         {
-            EditorGUILayout.LabelField(GameContentEditReferenceRenderer.DescribeReference(current.RecordReferenceValue), GUILayout.ExpandWidth(true));
+            DeucarianEditorTextGUI.LabelField(GameContentEditReferenceRenderer.DescribeReference(current.RecordReferenceValue), GUILayout.ExpandWidth(true));
             using (new EditorGUI.DisabledScope(!enabled))
             {
-                if (GUILayout.Button(new GUIContent("Choose...", "Select a compatible same-pack record."), GUILayout.Width(70f)))
+                if (DeucarianEditorActionGUI.Button(new GUIContent("Choose...", "Select a compatible same-pack record."), GUILayout.Width(70f)))
                 {
                     Rect rect = GUILayoutUtility.GetLastRect();
                     GameContentReferenceCandidateSet targets = context.EditSessions.GetStructuredReferenceCandidates(
@@ -317,7 +317,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentAuthoringValidationIssue[] issues = preview.Issues.Where(issue =>
                 issue != null && string.Equals(issue.Path, path, StringComparison.Ordinal)).ToArray();
             for (int i = 0; i < issues.Length; i++)
-                EditorGUILayout.HelpBox(issues[i].Message, GameContentEditFieldRenderer.ToMessageType(issues[i].Severity));
+                DeucarianEditorTextGUI.HelpBox(issues[i].Message, GameContentEditFieldRenderer.ToMessageType(issues[i].Severity));
         }
     }
 }
