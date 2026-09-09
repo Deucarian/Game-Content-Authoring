@@ -108,8 +108,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             IReadOnlyList<GameContentRecordDescriptor> records,
             Action drawAdditionalListControls)
         {
-            EditorGUILayout.LabelField(lens.DisplayName, DeucarianEditorStyles.SectionTitle);
-            EditorGUILayout.LabelField(
+            DeucarianEditorTextGUI.LabelField(lens.DisplayName, DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField(
                 context.PackContext.DisplayName + " - " + records.Count.ToString(CultureInfo.InvariantCulture) + " matching record(s)",
                 DeucarianEditorStyles.MutedLabel);
             DrawAccessStatus(context.PackContext);
@@ -128,7 +128,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
                 string capabilities = exposed.Length > 0 ? string.Join(", ", exposed) : "none";
-                EditorGUILayout.HelpBox(
+                DeucarianEditorTextGUI.HelpBox(
                     "Not used by this content pack. Exposed capabilities: " + capabilities + ".",
                     MessageType.Info);
                 EditorGUILayout.EndScrollView();
@@ -162,23 +162,23 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 if (context.SelectedRecord != null)
                 {
-                    EditorGUILayout.HelpBox(
+                    DeucarianEditorTextGUI.HelpBox(
                         context.SelectedRecord.DisplayName + " is not compatible with the " + lens.DisplayName + " lens. Its selection is preserved for a compatible view.",
                         MessageType.Info);
                     DrawCompatibleLenses(context, context.SelectedRecord);
                 }
                 else
                 {
-                    EditorGUILayout.HelpBox("Select a compatible record.", MessageType.Info);
+                    DeucarianEditorTextGUI.HelpBox("Select a compatible record.", MessageType.Info);
                 }
                 EditorGUILayout.EndScrollView();
                 return;
             }
 
             DrawBreadcrumb(context, lens, selected);
-            EditorGUILayout.LabelField(selected.DisplayName, HeaderStyle);
+            DeucarianEditorTextGUI.LabelField(selected.DisplayName, HeaderStyle);
             if (!string.IsNullOrWhiteSpace(selected.Description))
-                EditorGUILayout.LabelField(selected.Description, EditorStyles.wordWrappedLabel);
+                DeucarianEditorTextGUI.LabelField(selected.Description, DeucarianEditorWorkbenchGUI.LabelStyle);
             DrawRow("Record ID", selected.SourceRecordId);
             DrawRow("Canonical Key", selected.CanonicalKey.StableKey);
             DrawRow("Owning Pack", GetPackName(context, selected));
@@ -193,7 +193,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 bool canReveal = selected.SourceAsset != null && context.PackContext.Access.CanRevealSource;
                 using (new EditorGUI.DisabledScope(!canReveal))
                 {
-                    if (GUILayout.Button(new GUIContent("Reveal Source", canReveal ? "Reveal the owning source asset." : context.PackContext.Access.DisabledReason), GUILayout.Height(24f)))
+                    if (DeucarianEditorActionGUI.Button(new GUIContent("Reveal Source", canReveal ? "Reveal the owning source asset." : context.PackContext.Access.DisabledReason), GUILayout.Height(24f)))
                     {
                         Selection.activeObject = selected.SourceAsset;
                         EditorGUIUtility.PingObject(selected.SourceAsset);
@@ -204,7 +204,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                                    context.PackContext.Access.CanValidate;
                 using (new EditorGUI.DisabledScope(!canValidate))
                 {
-                    if (GUILayout.Button(
+                    if (DeucarianEditorActionGUI.Button(
                             new GUIContent(
                                 "Validate Pack",
                                 canValidate ? "Run validation against the selected content pack." : "Validation is unavailable in this context."),
@@ -237,10 +237,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             Action<GameContentRecordDescriptor> drawDomainPreview)
         {
             state.PreviewScroll = EditorGUILayout.BeginScrollView(state.PreviewScroll);
-            EditorGUILayout.LabelField("Preview Lab", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Preview Lab", DeucarianEditorStyles.SectionTitle);
             if (selected == null)
             {
-                EditorGUILayout.HelpBox("Select a " + lens.DisplayName + " record to preview authored values.", MessageType.Info);
+                DeucarianEditorTextGUI.HelpBox("Select a " + lens.DisplayName + " record to preview authored values.", MessageType.Info);
                 EditorGUILayout.EndScrollView();
                 return;
             }
@@ -251,8 +251,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             drawDomainPreview?.Invoke(selected);
             if (drawDomainPreview == null)
             {
-                EditorGUILayout.LabelField(selected.DisplayName, HeaderStyle);
-                EditorGUILayout.LabelField(selected.Summary, EditorStyles.wordWrappedLabel);
+                DeucarianEditorTextGUI.LabelField(selected.DisplayName, HeaderStyle);
+                DeucarianEditorTextGUI.LabelField(selected.Summary, DeucarianEditorWorkbenchGUI.LabelStyle);
                 DrawMetadata(selected);
             }
             EditorGUILayout.EndScrollView();
@@ -263,7 +263,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentLensDescriptor lens,
             GameContentRecordDescriptor record)
         {
-            EditorGUILayout.LabelField(
+            DeucarianEditorTextGUI.LabelField(
                 GetPackName(context, record) + " / " + lens.DisplayName + " / " + record.DisplayName,
                 DeucarianEditorStyles.MutedLabel);
         }
@@ -272,7 +272,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (record == null || record.PlayerFacingMetadata.Count == 0) return;
             GUILayout.Space(DeucarianEditorSpacing.Small);
-            EditorGUILayout.LabelField("Authored Metadata", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Authored Metadata", DeucarianEditorStyles.SectionTitle);
             for (int i = 0; i < record.PlayerFacingMetadata.Count; i++)
                 DrawRow(record.PlayerFacingMetadata[i].Label, record.PlayerFacingMetadata[i].Value);
         }
@@ -283,10 +283,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             string title,
             IReadOnlyList<GameContentRecordReferenceDescriptor> references)
         {
-            EditorGUILayout.LabelField(title, DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField(title, DeucarianEditorStyles.SectionTitle);
             if (references == null || references.Count == 0)
             {
-                EditorGUILayout.LabelField("None", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField("None", DeucarianEditorStyles.MutedLabel);
                 return;
             }
 
@@ -297,7 +297,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 string label = (reference.Valid ? string.Empty : "Broken: ") + reference.RelationshipLabel + " -> " + reference.TargetRecordId;
                 using (new EditorGUI.DisabledScope(target == null))
                 {
-                    if (GUILayout.Button(label, GUILayout.Height(22f)) && target != null)
+                    if (DeucarianEditorActionGUI.Button(label, GUILayout.Height(22f)) && target != null)
                     {
                         context.SelectRecord(target);
                         context.RequestRepaint();
@@ -312,11 +312,11 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             GameContentLensDescriptor[] compatible = context.Lenses.Where(lens => lens.Matches(record)).ToArray();
             if (compatible.Length == 0) return;
-            EditorGUILayout.LabelField("Open In", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Open In", DeucarianEditorStyles.SectionTitle);
             for (int i = 0; i < compatible.Length; i++)
             {
                 GameContentLensDescriptor lens = compatible[i];
-                if (GUILayout.Button("Open " + lens.DisplayName, GUILayout.Height(22f)))
+                if (DeucarianEditorActionGUI.Button("Open " + lens.DisplayName, GUILayout.Height(22f)))
                     context.OpenLens(lens.LensId, record);
             }
         }
@@ -324,10 +324,10 @@ namespace Deucarian.GameContentAuthoring.Editor
         private static void DrawValidation(GameContentAuthoringValidationResult validation)
         {
             validation = validation ?? GameContentAuthoringValidationResult.Valid;
-            EditorGUILayout.LabelField("Validation", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Validation", DeucarianEditorStyles.SectionTitle);
             if (validation.Issues.Count == 0)
             {
-                EditorGUILayout.HelpBox("Ready", MessageType.Info);
+                DeucarianEditorTextGUI.HelpBox("Ready", MessageType.Info);
                 return;
             }
 
@@ -339,7 +339,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     : issue.Severity == GameContentAuthoringValidationSeverity.Warning
                         ? MessageType.Warning
                         : MessageType.Info;
-                EditorGUILayout.HelpBox(issue.Path + ": " + issue.Message, type);
+                DeucarianEditorTextGUI.HelpBox(issue.Path + ": " + issue.Message, type);
             }
         }
 
@@ -364,9 +364,9 @@ namespace Deucarian.GameContentAuthoring.Editor
                     GUILayout.MinWidth(74f));
             }
             if (compact) return;
-            EditorGUILayout.LabelField(context.Access.PersistenceLabel, DeucarianEditorStyles.MutedLabel);
+            DeucarianEditorTextGUI.LabelField(context.Access.PersistenceLabel, DeucarianEditorStyles.MutedLabel);
             if (!context.Access.IsWritable && !string.IsNullOrWhiteSpace(context.Access.DisabledReason))
-                EditorGUILayout.LabelField(context.Access.DisabledReason, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(context.Access.DisabledReason, DeucarianEditorStyles.MutedLabel);
         }
 
         internal static string GetPackName(GameContentAuthoringSurfaceContext context, GameContentRecordDescriptor record)
@@ -380,8 +380,8 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField(label, DeucarianEditorStyles.MutedLabel, GUILayout.Width(108f));
-                EditorGUILayout.SelectableLabel(value ?? string.Empty, EditorStyles.wordWrappedLabel, GUILayout.MinHeight(18f));
+                DeucarianEditorTextGUI.LabelField(label, DeucarianEditorStyles.MutedLabel, GUILayout.Width(108f));
+                EditorGUILayout.SelectableLabel(value ?? string.Empty, DeucarianEditorWorkbenchGUI.LabelStyle, GUILayout.MinHeight(18f));
             }
         }
 
@@ -399,7 +399,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         }
 
         private static GUIStyle headerStyle;
-        private static GUIStyle HeaderStyle => headerStyle ?? (headerStyle = new GUIStyle(EditorStyles.boldLabel)
+        private static GUIStyle HeaderStyle => headerStyle ?? (headerStyle = new GUIStyle(DeucarianEditorWorkbenchGUI.BoldLabelStyle)
         {
             fontSize = 14,
             wordWrap = true
@@ -451,23 +451,23 @@ namespace Deucarian.GameContentAuthoring.Editor
             int capabilityIndex = string.IsNullOrWhiteSpace(state.CapabilityId)
                 ? 0
                 : Math.Max(0, Array.FindIndex(capabilityLabels, value => string.Equals(value, state.CapabilityId, StringComparison.OrdinalIgnoreCase)));
-            int nextCapability = EditorGUILayout.Popup(capabilityIndex, capabilityLabels);
+            int nextCapability = DeucarianEditorInputGUI.Popup(capabilityIndex, capabilityLabels);
             state.CapabilityId = nextCapability <= 0 ? string.Empty : capabilityLabels[nextCapability];
 
             string[] sourceLabels = new[] { "All Sources" }.Concat(sources).ToArray();
             int sourceIndex = string.IsNullOrWhiteSpace(state.SourceId)
                 ? 0
                 : Math.Max(0, Array.FindIndex(sourceLabels, value => string.Equals(value, state.SourceId, StringComparison.OrdinalIgnoreCase)));
-            int nextSource = EditorGUILayout.Popup(sourceIndex, sourceLabels);
+            int nextSource = DeucarianEditorInputGUI.Popup(sourceIndex, sourceLabels);
             state.SourceId = nextSource <= 0 ? string.Empty : sourceLabels[nextSource];
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                state.ValidationFilter = (GameContentRecordValidationFilter)EditorGUILayout.Popup(
+                state.ValidationFilter = (GameContentRecordValidationFilter)DeucarianEditorInputGUI.Popup(
                     (int)state.ValidationFilter,
                     ValidationLabels,
                     GUILayout.MinWidth(96f));
-                state.SortMode = (GameContentRecordSortMode)EditorGUILayout.Popup(
+                state.SortMode = (GameContentRecordSortMode)DeucarianEditorInputGUI.Popup(
                     (int)state.SortMode,
                     SortLabels,
                     GUILayout.MinWidth(96f));
@@ -584,8 +584,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             context.Authoring.SetValidation(pack.Validation);
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
             {
-                EditorGUILayout.LabelField(pack.DisplayName, HeaderStyle);
-                EditorGUILayout.LabelField(pack.Description, EditorStyles.wordWrappedLabel);
+                DeucarianEditorTextGUI.LabelField(pack.DisplayName, HeaderStyle);
+                DeucarianEditorTextGUI.LabelField(pack.Description, DeucarianEditorWorkbenchGUI.LabelStyle);
                 GameContentRecordLensBrowser.DrawAccessStatus(packContext);
                 GameContentRecordLensBrowser.DrawRow("Owner", pack.OwningPackageId);
                 GameContentRecordLensBrowser.DrawRow("Pack ID", pack.PackId);
@@ -599,9 +599,9 @@ namespace Deucarian.GameContentAuthoring.Editor
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("Open All Content", GUILayout.Height(26f)))
+                    if (DeucarianEditorActionGUI.Button("Open All Content", GUILayout.Height(26f)))
                         context.OpenLens("all-content");
-                    if (GUILayout.Button("Refresh", GUILayout.Height(26f)))
+                    if (DeucarianEditorActionGUI.Button("Refresh", GUILayout.Height(26f)))
                         context.RefreshLibrary();
                 }
 
@@ -615,15 +615,15 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentAuthoringSurfaceContext context,
             IReadOnlyList<GameContentPackCatalogEntry> entries)
         {
-            EditorGUILayout.LabelField("All Packs", HeaderStyle);
-            EditorGUILayout.LabelField("Cross-pack comparison-friendly browsing is read-only.", EditorStyles.wordWrappedLabel);
+            DeucarianEditorTextGUI.LabelField("All Packs", HeaderStyle);
+            DeucarianEditorTextGUI.LabelField("Cross-pack comparison-friendly browsing is read-only.", DeucarianEditorWorkbenchGUI.LabelStyle);
             GameContentRecordLensBrowser.DrawAccessStatus(context.PackContext);
-            if (GUILayout.Button("Open All Content", GUILayout.Height(26f))) context.OpenLens("all-content");
+            if (DeucarianEditorActionGUI.Button("Open All Content", GUILayout.Height(26f))) context.OpenLens("all-content");
             for (int i = 0; i < entries.Count; i++)
             {
                 GameContentPackCatalogEntry entry = entries[i];
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.LabelField(entry.Pack.DisplayName, DeucarianEditorStyles.SectionTitle);
+                EditorGUILayout.BeginVertical(DeucarianEditorStyles.SectionBox);
+                DeucarianEditorTextGUI.LabelField(entry.Pack.DisplayName, DeucarianEditorStyles.SectionTitle);
                 GameContentRecordLensBrowser.DrawRow("Owner", entry.Pack.OwningPackageId);
                 GameContentRecordLensBrowser.DrawRow("State", entry.IsConflict ? "Conflict" : entry.Pack.SourceState.ToString());
                 GameContentRecordLensBrowser.DrawRow("Access", entry.EffectiveAccess.PersistenceLabel);
@@ -634,10 +634,10 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         private static void DrawCategories(GameContentPackDescriptor pack)
         {
-            EditorGUILayout.LabelField("Pack Views", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Pack Views", DeucarianEditorStyles.SectionTitle);
             if (pack.Categories.Count == 0)
             {
-                EditorGUILayout.LabelField("No pack-specific categories.", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField("No pack-specific categories.", DeucarianEditorStyles.MutedLabel);
                 return;
             }
 
@@ -648,7 +648,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         private static void DrawActions(GameContentAuthoringSurfaceContext context, GameContentPackContext packContext)
         {
             if (packContext.Pack.Actions.Count == 0) return;
-            EditorGUILayout.LabelField("Actions", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Actions", DeucarianEditorStyles.SectionTitle);
             for (int i = 0; i < packContext.Pack.Actions.Count; i++)
             {
                 GameContentActionDescriptor action = packContext.Pack.Actions[i];
@@ -658,7 +658,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     : !action.Enabled ? action.DisabledReason : packContext.Access.DisabledReason;
                 using (new EditorGUI.DisabledScope(!enabled))
                 {
-                    if (GUILayout.Button(new GUIContent(action.DisplayName, reason), GUILayout.Height(25f)))
+                    if (DeucarianEditorActionGUI.Button(new GUIContent(action.DisplayName, reason), GUILayout.Height(25f)))
                     {
                         GameContentActionResult result = GameContentPackActionDispatcher.Execute(
                             packContext.Provider,
@@ -687,10 +687,10 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         private static void DrawValidation(GameContentAuthoringValidationResult validation)
         {
-            EditorGUILayout.LabelField("Validation", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Validation", DeucarianEditorStyles.SectionTitle);
             if (validation == null || validation.Issues.Count == 0)
             {
-                EditorGUILayout.HelpBox("No validation issues.", MessageType.Info);
+                DeucarianEditorTextGUI.HelpBox("No validation issues.", MessageType.Info);
                 return;
             }
             for (int i = 0; i < validation.Issues.Count; i++)
@@ -701,12 +701,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                     : issue.Severity == GameContentAuthoringValidationSeverity.Warning
                         ? MessageType.Warning
                         : MessageType.Info;
-                EditorGUILayout.HelpBox(issue.Path + ": " + issue.Message, type);
+                DeucarianEditorTextGUI.HelpBox(issue.Path + ": " + issue.Message, type);
             }
         }
 
         private static GUIStyle headerStyle;
-        private static GUIStyle HeaderStyle => headerStyle ?? (headerStyle = new GUIStyle(EditorStyles.boldLabel)
+        private static GUIStyle HeaderStyle => headerStyle ?? (headerStyle = new GUIStyle(DeucarianEditorWorkbenchGUI.BoldLabelStyle)
         {
             fontSize = 16,
             wordWrap = true

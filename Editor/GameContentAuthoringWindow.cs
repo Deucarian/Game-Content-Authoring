@@ -109,9 +109,9 @@ namespace Deucarian.GameContentAuthoring.Editor
         private void DrawPackSelector()
         {
             if (_packCatalog == null || _packContext == null) return;
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
+            using (new EditorGUILayout.HorizontalScope(DeucarianEditorWorkbenchGUI.InputStyles.Toolbar))
             {
-                EditorGUILayout.LabelField("Content Pack", GUILayout.Width(88f));
+                DeucarianEditorTextGUI.LabelField("Content Pack", GUILayout.Width(88f));
                 string[] labels = _packCatalog.Entries.Select(entry => entry.Pack.DisplayName)
                     .Concat(new[] { "All Packs" })
                     .ToArray();
@@ -120,12 +120,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                     .ToArray();
                 int current = Array.FindIndex(keys, key => string.Equals(key, _packContext.SelectionKey, StringComparison.OrdinalIgnoreCase));
                 if (current < 0) current = 0;
-                int next = EditorGUILayout.Popup(current, labels, GUILayout.MinWidth(180f));
+                int next = DeucarianEditorInputGUI.Popup(current, labels, GUILayout.MinWidth(180f));
                 if (next != current && next >= 0 && next < keys.Length) SelectPack(keys[next]);
                 GUILayout.Space(6f);
                 GameContentRecordLensBrowser.DrawAccessStatus(_packContext, true);
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button(new GUIContent("Refresh", "Refresh content packs and Project Content."), EditorStyles.toolbarButton, GUILayout.Width(62f)))
+                if (DeucarianEditorActionGUI.Button(new GUIContent("Refresh", "Refresh content packs and Project Content."), DeucarianEditorWorkbenchGUI.SecondaryButtonStyle, GUILayout.Width(62f)))
                     RefreshAuthoringData();
             }
         }
@@ -137,7 +137,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GUILayout.Width(layout.SidebarWidth),
                 GUILayout.ExpandHeight(true));
             DeucarianEditorVisualShell.DrawFrostedSurface(rect, DeucarianEditorTheme.GlassPanel, DeucarianEditorTheme.Border);
-            EditorGUILayout.LabelField("Authoring Views", DeucarianEditorSidebar.HeadingStyle);
+            DeucarianEditorTextGUI.LabelField("Authoring Views", DeucarianEditorSidebar.HeadingStyle);
             if (providers.Count == 0)
             {
                 DeucarianEditorStatusPanel.DrawStatusCard("No content authoring providers installed.", DeucarianEditorStatus.Info);
@@ -153,7 +153,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     if (!string.Equals(group, currentGroup, StringComparison.Ordinal))
                     {
                         if (!string.IsNullOrWhiteSpace(currentGroup)) GUILayout.Space(DeucarianEditorSpacing.Small);
-                        EditorGUILayout.LabelField(group, DeucarianEditorStyles.MutedLabel);
+                        DeucarianEditorTextGUI.LabelField(group, DeucarianEditorStyles.MutedLabel);
                         currentGroup = group;
                     }
                     string label = BuildProviderLabel(provider, lens);
@@ -170,17 +170,17 @@ namespace Deucarian.GameContentAuthoring.Editor
             GUILayout.FlexibleSpace();
             if (!layout.Narrow && !IsSelectedProviderCustomSurface(providers))
             {
-                EditorGUILayout.LabelField("Installed Providers", DeucarianEditorSidebar.HeadingStyle);
+                DeucarianEditorTextGUI.LabelField("Installed Providers", DeucarianEditorSidebar.HeadingStyle);
                 if (providers.Count == 0)
                 {
-                    EditorGUILayout.LabelField("None", DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField("None", DeucarianEditorStyles.MutedLabel);
                 }
                 else
                 {
                     for (int i = 0; i < providers.Count; i++)
                     {
                         string state = providers[i].Enabled ? "enabled" : "disabled";
-                        EditorGUILayout.LabelField(providers[i].DisplayName + " - " + state, DeucarianEditorStyles.MutedLabel);
+                        DeucarianEditorTextGUI.LabelField(providers[i].DisplayName + " - " + state, DeucarianEditorStyles.MutedLabel);
                     }
                 }
             }
@@ -308,7 +308,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 DeucarianEditorCards.DrawCard("No Providers", () =>
                 {
-                    EditorGUILayout.LabelField("Install a content package such as Deucarian Attacks to add authoring providers.", DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField("Install a content package such as Deucarian Attacks to add authoring providers.", DeucarianEditorStyles.MutedLabel);
                 });
                 return;
             }
@@ -317,8 +317,8 @@ namespace Deucarian.GameContentAuthoring.Editor
             IGameContentAuthoringProvider provider = providers[_selectedProvider];
             DeucarianEditorCards.DrawCard("Provider", () =>
             {
-                EditorGUILayout.LabelField(provider.DisplayName, DeucarianEditorStyles.SectionTitle);
-                EditorGUILayout.LabelField(provider.Description, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(provider.DisplayName, DeucarianEditorStyles.SectionTitle);
+                DeucarianEditorTextGUI.LabelField(provider.Description, DeucarianEditorStyles.MutedLabel);
             });
 
             var context = new GameContentAuthoringContext(
@@ -337,7 +337,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 DeucarianEditorCards.DrawCard("Preview", () =>
                 {
-                    EditorGUILayout.LabelField("Install an authoring provider to enable rich previews.", DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField("Install an authoring provider to enable rich previews.", DeucarianEditorStyles.MutedLabel);
                 });
                 return;
             }
@@ -347,7 +347,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentLibraryItem selectedItem = GetSelectedExistingItem(provider);
             DeucarianEditorCards.DrawCard("Live Preview", () =>
             {
-                EditorGUILayout.LabelField(provider.DisplayName, DeucarianEditorStyles.SectionTitle);
+                DeucarianEditorTextGUI.LabelField(provider.DisplayName, DeucarianEditorStyles.SectionTitle);
                 if (selectedItem == null)
                 {
                     DeucarianEditorStatusBadge.Draw("Create form", DeucarianEditorStatus.Info, GUILayout.Width(94f));
@@ -362,8 +362,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                     DeucarianEditorMiniToolbar.SelectButton(selectedItem.Asset);
                 }
 
-                EditorGUILayout.LabelField(selectedItem.DisplayName, DeucarianEditorStyles.SectionTitle);
-                EditorGUILayout.LabelField(GameContentExistingItemPresentation.GetIdLabel(selectedItem) + " - " + selectedItem.Category, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(selectedItem.DisplayName, DeucarianEditorStyles.SectionTitle);
+                DeucarianEditorTextGUI.LabelField(GameContentExistingItemPresentation.GetIdLabel(selectedItem) + " - " + selectedItem.Category, DeucarianEditorStyles.MutedLabel);
             });
 
             var context = new GameContentAuthoringPreviewContext(

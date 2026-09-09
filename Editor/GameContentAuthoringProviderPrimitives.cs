@@ -281,13 +281,13 @@ namespace Deucarian.GameContentAuthoring.Editor
             if (rows == null || rows.Count == 0)
                 return;
 
-            GUIStyle style = muted ? DeucarianEditorStyles.MutedLabel : EditorStyles.label;
+            GUIStyle style = muted ? DeucarianEditorStyles.MutedLabel : DeucarianEditorWorkbenchGUI.LabelStyle;
             for (int i = 0; i < rows.Count; i++)
             {
                 GameContentAuthoringPreviewRow row = rows[i];
                 DeucarianEditorFieldRow.Draw(
                     row.Label,
-                    () => EditorGUILayout.LabelField(row.Value ?? string.Empty, style));
+                    () => DeucarianEditorTextGUI.LabelField(row.Value ?? string.Empty, style));
             }
         }
 
@@ -302,10 +302,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             IReadOnlyList<GameContentLibraryReference> references,
             string emptyText = "None")
         {
-            EditorGUILayout.LabelField(title ?? string.Empty, DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField(title ?? string.Empty, DeucarianEditorStyles.SectionTitle);
             if (references == null || references.Count == 0)
             {
-                EditorGUILayout.LabelField(emptyText ?? "None", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(emptyText ?? "None", DeucarianEditorStyles.MutedLabel);
                 return;
             }
 
@@ -315,12 +315,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                 string label = FormatReference(references[i]);
                 if (string.IsNullOrWhiteSpace(label))
                     continue;
-                EditorGUILayout.LabelField(label, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(label, DeucarianEditorStyles.MutedLabel);
                 drewReference = true;
             }
 
             if (!drewReference)
-                EditorGUILayout.LabelField(emptyText ?? "None", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(emptyText ?? "None", DeucarianEditorStyles.MutedLabel);
         }
 
         /// <summary>

@@ -1,6 +1,6 @@
 # Deucarian Game Content Authoring
 
-Current package version: 0.2.2
+Current package version: 0.2.3
 
 Shared editor shell for Deucarian game content authoring providers.
 

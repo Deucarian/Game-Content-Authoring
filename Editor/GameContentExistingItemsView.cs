@@ -70,8 +70,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                             DeucarianEditorMiniToolbar.SelectButton(item.Asset);
                         }
 
-                        DeucarianEditorFieldRow.Draw("ID", () => EditorGUILayout.LabelField(string.IsNullOrWhiteSpace(item.Id) ? "(missing)" : item.Id, context.MutedStyle));
-                        DeucarianEditorFieldRow.Draw("Type", () => EditorGUILayout.LabelField(item.Category, context.MutedStyle));
+                        DeucarianEditorFieldRow.Draw("ID", () => DeucarianEditorTextGUI.LabelField(string.IsNullOrWhiteSpace(item.Id) ? "(missing)" : item.Id, context.MutedStyle));
+                        DeucarianEditorFieldRow.Draw("Type", () => DeucarianEditorTextGUI.LabelField(item.Category, context.MutedStyle));
                     });
 
                     DrawItemIssues(context, item);
@@ -111,7 +111,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 DeucarianEditorSectionHeader.Draw(title);
                 if (references == null || references.Count == 0)
                 {
-                    EditorGUILayout.LabelField("None found.", context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField("None found.", context.MutedStyle);
                     return;
                 }
 
@@ -119,7 +119,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 {
                     GameContentLibraryReference reference = references[i];
                     if (reference == null || reference.Target == null) continue;
-                    EditorGUILayout.LabelField(reference.Target.DisplayName + " (" + reference.Target.Category + ")", context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField(reference.Target.DisplayName + " (" + reference.Target.Category + ")", context.MutedStyle);
                 }
             });
         }
@@ -131,7 +131,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 context.DrawInlineCard(() =>
                 {
-                    DeucarianEditorFieldRow.Draw("Path", () => EditorGUILayout.LabelField(item.Path, context.MutedStyle));
+                    DeucarianEditorFieldRow.Draw("Path", () => DeucarianEditorTextGUI.LabelField(item.Path, context.MutedStyle));
                     using (new EditorGUILayout.HorizontalScope())
                     {
                         if (context.DrawSecondaryButton("Copy Path", !string.IsNullOrWhiteSpace(item.Path), GUILayout.Width(84f), GUILayout.Height(22f)))
@@ -160,7 +160,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 DeucarianEditorSectionHeader.Draw(title);
                 if (references == null || references.Count == 0)
                 {
-                    EditorGUILayout.LabelField("None", context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField("None", context.MutedStyle);
                     return;
                 }
 
@@ -168,7 +168,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 {
                     GameContentLibraryReference reference = references[i];
                     if (reference == null || reference.Target == null) continue;
-                    EditorGUILayout.LabelField(reference.Target.DisplayName + " - " + reference.PropertyPath, context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField(reference.Target.DisplayName + " - " + reference.PropertyPath, context.MutedStyle);
                 }
             });
         }
