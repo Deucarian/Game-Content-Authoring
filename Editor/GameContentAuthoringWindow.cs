@@ -35,11 +35,14 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (Application.isBatchMode) return;
 
-            GameContentAuthoringWindow window = GetWindow<GameContentAuthoringWindow>();
+            GameContentAuthoringWindow window = DeucarianEditorWindowPages.GetStandalone<GameContentAuthoringWindow>();
             window.titleContent = new GUIContent(WindowTitle);
             window.minSize = new Vector2(640f, 560f);
             window.Show();
         }
+
+        public static IDeucarianEditorPage CreatePage() =>
+            DeucarianEditorImGuiPage.Create<GameContentAuthoringWindow>(DeucarianToolIds.GameContentAuthoring, window => window.OnGUI(), window => window.StopSelectedProvider());
 
         private void OnGUI()
         {
