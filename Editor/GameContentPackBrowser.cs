@@ -448,6 +448,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     if (GUILayout.Button(new GUIContent(action.DisplayName, tooltip), GUILayout.Height(25f)))
                     {
                         GameContentActionResult result = GameContentPackActionDispatcher.Execute(provider, pack, action);
+                        context.ApplyNavigation(result);
                         if (action.ActionKind == GameContentActionKind.Validate)
                         {
                             state.Refresh(provider);

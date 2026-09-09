@@ -16,6 +16,19 @@ namespace Deucarian.GameContentAuthoring.Tests
         private string _providerId;
         private TestPackProvider _provider;
 
+        [Test]
+        public void NavigationResultsUseTheOwningSurfaceInsteadOfOpeningAWindow()
+        {
+            string destination = null;
+            var context = new GameContentAuthoringSurfaceContext(
+                null, null, default, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, navigate: id => destination = id);
+            context.ApplyNavigation(GameContentActionResult.Success("A command completed."));
+            Assert.That(destination, Is.Null);
+            context.ApplyNavigation(new GameContentActionResult(true, "Open setup", navigationToolId: "test.setup"));
+            Assert.That(destination, Is.EqualTo("test.setup"));
+        }
+
         [SetUp]
         public void SetUp()
         {

@@ -35,11 +35,17 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (Application.isBatchMode) return;
 
-            GameContentAuthoringWindow window = GetWindow<GameContentAuthoringWindow>();
+            GameContentAuthoringWindow window = DeucarianEditorWindowPages.GetStandalone<GameContentAuthoringWindow>();
             window.titleContent = new GUIContent(WindowTitle);
             window.minSize = new Vector2(640f, 560f);
             window.Show();
         }
+
+        private UnityEngine.UIElements.VisualElement navigationSource;
+
+        public static IDeucarianEditorPage CreatePage() =>
+            DeucarianEditorImGuiPage.Create<GameContentAuthoringWindow>(DeucarianToolIds.GameContentAuthoring, window => window.OnGUI(), window => window.StopSelectedProvider(),
+                bindNavigation: (window, source) => window.navigationSource = source);
 
         private void OnGUI()
         {
@@ -268,7 +274,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 SelectRecord,
                 OpenLens,
                 Repaint,
-                _editWorkbenchState);
+                _editWorkbenchState, toolId => DeucarianEditorNavigation.Open(navigationSource, toolId));
 
             surfaceProvider.DrawCustomAuthoringSurface(surfaceContext);
             EditorGUILayout.EndVertical();
