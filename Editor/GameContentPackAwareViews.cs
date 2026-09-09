@@ -664,7 +664,8 @@ namespace Deucarian.GameContentAuthoring.Editor
                             packContext.Provider,
                             packContext.Pack,
                             action);
-                        EditorUtility.DisplayDialog(
+                        context.ApplyNavigation(result);
+                        if (string.IsNullOrWhiteSpace(result.NavigationToolId)) EditorUtility.DisplayDialog(
                             result.Succeeded ? "Game Content Authoring" : "Action Failed",
                             result.Message,
                             "OK");
