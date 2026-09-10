@@ -18,7 +18,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (context == null || record == null || context.EditSessions == null) return;
             GUILayout.Space(DeucarianEditorSpacing.Small);
-            EditorGUILayout.LabelField("Record Editing", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Record Editing", DeucarianEditorStyles.SectionTitle);
 
             if (context.PackContext != null && !context.PackContext.IsAllPacks &&
                 context.EditSessions.TryGetSession(record.CanonicalKey, out GameContentActiveEditSession active))
@@ -51,7 +51,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                         availability.IsEditable ? DeucarianEditorStatus.Success : DeucarianEditorStatus.Info,
                         GUILayout.Width(82f));
                     if (!string.IsNullOrWhiteSpace(availability.BackendId))
-                        EditorGUILayout.LabelField(availability.BackendId, DeucarianEditorStyles.MutedLabel);
+                        DeucarianEditorTextGUI.LabelField(availability.BackendId, DeucarianEditorStyles.MutedLabel);
                     GUILayout.FlexibleSpace();
                     if (DeucarianEditorButtons.Primary(
                             "Edit",
@@ -72,11 +72,11 @@ namespace Deucarian.GameContentAuthoring.Editor
                 if (availability.SourceTarget != null)
                     GameContentRecordLensBrowser.DrawRow("Source", availability.SourceTarget.SourceLabel);
                 if (!availability.IsEditable)
-                    EditorGUILayout.LabelField(availability.DisabledReason, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(availability.DisabledReason, DeucarianEditorStyles.MutedLabel);
             });
 
             if (!string.IsNullOrWhiteSpace(beginMessage))
-                EditorGUILayout.HelpBox(beginMessage, beginFailed ? MessageType.Error : MessageType.Info);
+                DeucarianEditorTextGUI.HelpBox(beginMessage, beginFailed ? MessageType.Error : MessageType.Info);
         }
 
         internal static void DrawSession(
@@ -103,7 +103,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                         active.State.ToString(),
                         GetStateStatus(active.State),
                         GUILayout.MinWidth(82f));
-                    EditorGUILayout.LabelField(active.BackendId, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(active.BackendId, DeucarianEditorStyles.MutedLabel);
                     GUILayout.FlexibleSpace();
                     DeucarianEditorStatusBadge.Draw(
                         active.StaleCheck != null && active.StaleCheck.IsStale ? "Stale" : "Revision current",
@@ -119,7 +119,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     GameContentRecordLensBrowser.DrawRow("Location", active.SourceTarget.ProjectRelativeDescription);
                 GameContentRecordLensBrowser.DrawRow("Revision", active.OriginalRevision.Token);
                 if (!string.IsNullOrWhiteSpace(active.Message))
-                    EditorGUILayout.HelpBox(active.Message, GetMessageType(active));
+                    DeucarianEditorTextGUI.HelpBox(active.Message, GetMessageType(active));
             });
         }
 
@@ -127,7 +127,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentAuthoringSurfaceContext context,
             GameContentActiveEditSession active)
         {
-            EditorGUILayout.LabelField("Editable Fields", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Editable Fields", DeucarianEditorStyles.SectionTitle);
             string currentGroup = string.Empty;
             for (int i = 0; i < active.Fields.Count; i++)
             {
@@ -135,7 +135,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 if (!string.Equals(currentGroup, field.Group, StringComparison.Ordinal))
                 {
                     currentGroup = field.Group;
-                    EditorGUILayout.LabelField(currentGroup, EditorStyles.boldLabel);
+                    DeucarianEditorTextGUI.LabelField(currentGroup, DeucarianEditorWorkbenchGUI.BoldLabelStyle);
                 }
                 GameContentEditFieldRenderer.DrawField(context, active, field);
             }
@@ -144,7 +144,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         internal static void DrawValidation(GameContentValidationPreview preview)
         {
             preview = preview ?? GameContentValidationPreview.Valid;
-            EditorGUILayout.LabelField("Edit Validation", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField("Edit Validation", DeucarianEditorStyles.SectionTitle);
             DeucarianEditorStatusBadge.Draw(
                 preview.State.ToString(),
                 preview.State == GameContentEditValidationState.Invalid
@@ -155,21 +155,21 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GUILayout.Width(82f));
             if (preview.Issues.Count == 0)
             {
-                EditorGUILayout.LabelField("No edit validation issues.", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField("No edit validation issues.", DeucarianEditorStyles.MutedLabel);
                 return;
             }
             for (int i = 0; i < preview.Issues.Count; i++)
             {
                 GameContentAuthoringValidationIssue issue = preview.Issues[i];
-                EditorGUILayout.HelpBox(issue.Path + ": " + issue.Message, GameContentEditFieldRenderer.ToMessageType(issue.Severity));
+                DeucarianEditorTextGUI.HelpBox(issue.Path + ": " + issue.Message, GameContentEditFieldRenderer.ToMessageType(issue.Severity));
             }
         }
 
         internal static void DrawRecovery(GameContentActiveEditSession active)
         {
             if (active.Recovery == null) return;
-            EditorGUILayout.LabelField("Recovery", DeucarianEditorStyles.SectionTitle);
-            EditorGUILayout.HelpBox(active.Recovery.ActionableMessage, MessageType.Error);
+            DeucarianEditorTextGUI.LabelField("Recovery", DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.HelpBox(active.Recovery.ActionableMessage, MessageType.Error);
             GameContentRecordLensBrowser.DrawRow("Phase", active.Recovery.Phase);
             GameContentRecordLensBrowser.DrawRow("Recorded", active.Recovery.TimestampUtc.ToString("u", CultureInfo.InvariantCulture));
         }

@@ -56,14 +56,14 @@ namespace Deucarian.GameContentAuthoring.Editor
             DeucarianEditorCards.DrawInlineCard(() =>
             {
                 DeucarianEditorStatusBadge.Draw("Library", DeucarianEditorStatus.Info, GUILayout.Width(72f));
-                EditorGUILayout.LabelField(report != null && report.Items.Count == 0 ? "No authored content found." : "Select an authored asset.", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(report != null && report.Items.Count == 0 ? "No authored content found." : "Select an authored asset.", DeucarianEditorStyles.MutedLabel);
             });
         }
 
         internal static void DrawSelectedHeader(GameContentLibraryItem selected)
         {
-            EditorGUILayout.LabelField(selected.DisplayName, GameContentLibraryViewControls.HeaderStyle);
-            EditorGUILayout.LabelField(string.IsNullOrWhiteSpace(selected.Id) ? "(missing id)" : selected.Id, DeucarianEditorStyles.MutedLabel);
+            DeucarianEditorTextGUI.LabelField(selected.DisplayName, GameContentLibraryViewControls.HeaderStyle);
+            DeucarianEditorTextGUI.LabelField(string.IsNullOrWhiteSpace(selected.Id) ? "(missing id)" : selected.Id, DeucarianEditorStyles.MutedLabel);
             DeucarianEditorStatusChipRow.Draw(new[]
             {
                 new DeucarianEditorStatusChip(GameContentLibraryV2Model.GetKindLabel(selected.Kind), DeucarianEditorStatus.Info),
@@ -106,7 +106,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 DeucarianEditorCards.DrawInlineCard(() =>
                 {
                     DeucarianEditorStatusBadge.Draw("None", DeucarianEditorStatus.Disabled, GUILayout.Width(64f));
-                    EditorGUILayout.LabelField(emptyText, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(emptyText, DeucarianEditorStyles.MutedLabel);
                 });
                 return;
             }
@@ -153,14 +153,14 @@ namespace Deucarian.GameContentAuthoring.Editor
                 if (selected.Issues.Count == 0)
                 {
                     DeucarianEditorStatusBadge.Draw("Ready", DeucarianEditorStatus.Success, GUILayout.Width(72f));
-                    EditorGUILayout.LabelField("No blockers or warnings.", DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField("No blockers or warnings.", DeucarianEditorStyles.MutedLabel);
                     return;
                 }
 
                 DeucarianEditorStatus status = selected.ErrorCount > 0 ? DeucarianEditorStatus.Error : DeucarianEditorStatus.Warning;
                 DeucarianEditorStatusBadge.Draw(selected.ValidationLabel, status, GUILayout.Width(104f));
                 for (int i = 0; i < selected.Issues.Count; i++)
-                    EditorGUILayout.LabelField(selected.Issues[i].Path + ": " + selected.Issues[i].Message, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(selected.Issues[i].Path + ": " + selected.Issues[i].Message, DeucarianEditorStyles.MutedLabel);
             });
         }
 

@@ -149,7 +149,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     GUILayout.Width(mode == GameContentAuthoringWorkbenchMode.Edit && dirty ? 78f : 64f));
 
                 if (!string.IsNullOrWhiteSpace(statusMessage))
-                    EditorGUILayout.LabelField(statusMessage, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(statusMessage, DeucarianEditorStyles.MutedLabel);
 
                 GUILayout.FlexibleSpace();
                 if (mode == GameContentAuthoringWorkbenchMode.Edit)
@@ -212,7 +212,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField(model.Title ?? "Preview Lab", HeaderStyle);
+                DeucarianEditorTextGUI.LabelField(model.Title ?? "Preview Lab", HeaderStyle);
                 GUILayout.FlexibleSpace();
                 DeucarianEditorStatusBadge.Draw(model.ScopeLabel ?? "Selected", DeucarianEditorStatus.Info, GUILayout.Width(78f));
             }
@@ -232,7 +232,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 if (headerStyle == null)
                 {
-                    headerStyle = new GUIStyle(EditorStyles.boldLabel)
+                    headerStyle = new GUIStyle(DeucarianEditorWorkbenchGUI.BoldLabelStyle)
                     {
                         fontSize = 14
                     };

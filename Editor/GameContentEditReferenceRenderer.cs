@@ -34,9 +34,9 @@ namespace Deucarian.GameContentAuthoring.Editor
             string label = reference == null ? "Unavailable" : reference.ToDisplayString();
             Rect selectorRect = GUILayoutUtility.GetRect(
                 new GUIContent(label),
-                EditorStyles.popup,
+                DeucarianEditorWorkbenchGUI.InputStyles.Popup,
                 GUILayout.ExpandWidth(true));
-            if (EditorGUI.DropdownButton(selectorRect, new GUIContent(label), FocusType.Keyboard, EditorStyles.popup))
+            if (EditorGUI.DropdownButton(selectorRect, new GUIContent(label), FocusType.Keyboard, DeucarianEditorWorkbenchGUI.InputStyles.Popup))
             {
                 GameContentReferenceCandidateSet targets = context.EditSessions.GetReferenceCandidates(
                     active,
@@ -60,7 +60,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentRecordDescriptor target = ResolveCurrentTarget(context, reference);
             using (new EditorGUI.DisabledScope(target == null))
             {
-                if (GUILayout.Button("Open", GUILayout.Width(48f)))
+                if (DeucarianEditorActionGUI.Button("Open", GUILayout.Width(48f)))
                     OpenTarget(context, target);
             }
         }
@@ -87,7 +87,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             if (reference == null) return;
             if (reference.IsBroken)
             {
-                EditorGUILayout.HelpBox(
+                DeucarianEditorTextGUI.HelpBox(
                     "Broken reference '" + reference.OriginalReference + "': " + reference.BrokenReason,
                     MessageType.Error);
                 return;
@@ -96,14 +96,14 @@ namespace Deucarian.GameContentAuthoring.Editor
             if (reference.IsNone)
             {
                 if (field.Required)
-                    EditorGUILayout.HelpBox("Select a valid target before committing.", MessageType.Error);
+                    DeucarianEditorTextGUI.HelpBox("Select a valid target before committing.", MessageType.Error);
                 return;
             }
 
             GameContentRecordDescriptor target = ResolveCurrentTarget(context, reference);
             if (target == null)
             {
-                EditorGUILayout.HelpBox(
+                DeucarianEditorTextGUI.HelpBox(
                     "The selected target is no longer present in this content pack.",
                     MessageType.Error);
                 return;

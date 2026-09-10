@@ -29,7 +29,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             }
             if (cached == null)
             {
-                cached = new GUIStyle(header ? EditorStyles.boldLabel : EditorStyles.miniBoldLabel);
+                cached = new GUIStyle(header ? DeucarianEditorWorkbenchGUI.BoldLabelStyle : DeucarianEditorWorkbenchGUI.RowTitleStyle);
                 if (header)
                 {
                     cached.fontSize = 14;

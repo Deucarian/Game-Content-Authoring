@@ -94,7 +94,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (rows == null || rows.Count == 0)
             {
-                EditorGUILayout.LabelField("No preview details available.", MutedStyle);
+                DeucarianEditorTextGUI.LabelField("No preview details available.", MutedStyle);
                 return;
             }
 
@@ -108,7 +108,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             DeucarianEditorFieldRow.Draw(label, () =>
             {
-                EditorGUILayout.LabelField(value ?? string.Empty, PreviewValueStyle);
+                DeucarianEditorTextGUI.LabelField(value ?? string.Empty, PreviewValueStyle);
             });
         }
 
@@ -117,7 +117,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             DeucarianEditorFieldRow.Draw(label, () =>
             {
                 string value = asset == null ? emptyText ?? "Not assigned" : asset.name;
-                EditorGUILayout.LabelField(value, asset == null ? PreviewMutedValueStyle : PreviewValueStyle);
+                DeucarianEditorTextGUI.LabelField(value, asset == null ? PreviewMutedValueStyle : PreviewValueStyle);
                 DeucarianEditorMiniToolbar.PingButton(asset);
                 DeucarianEditorMiniToolbar.SelectButton(asset);
             });
@@ -132,10 +132,10 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             DrawInlineCard(() =>
             {
-                EditorGUILayout.LabelField(title ?? "Preview Asset", SectionTitleStyle);
+                DeucarianEditorTextGUI.LabelField(title ?? "Preview Asset", SectionTitleStyle);
                 if (asset == null)
                 {
-                    EditorGUILayout.LabelField(emptyText ?? "No asset assigned.", MutedStyle);
+                    DeucarianEditorTextGUI.LabelField(emptyText ?? "No asset assigned.", MutedStyle);
                     return;
                 }
 
@@ -147,7 +147,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    EditorGUILayout.LabelField(asset.name, PreviewValueStyle);
+                    DeucarianEditorTextGUI.LabelField(asset.name, PreviewValueStyle);
                     if (DrawSecondaryButton("Ping", true, GUILayout.Width(54f), GUILayout.Height(22f)))
                         EditorGUIUtility.PingObject(asset);
                 }
@@ -158,7 +158,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (items == null || items.Count == 0)
             {
-                EditorGUILayout.LabelField("No timeline entries.", MutedStyle);
+                DeucarianEditorTextGUI.LabelField("No timeline entries.", MutedStyle);
                 return;
             }
 
@@ -169,13 +169,13 @@ namespace Deucarian.GameContentAuthoring.Editor
                 {
                     using (new EditorGUILayout.HorizontalScope())
                     {
-                        EditorGUILayout.LabelField(item.Label, PreviewValueStyle);
+                        DeucarianEditorTextGUI.LabelField(item.Label, PreviewValueStyle);
                         GUILayout.FlexibleSpace();
-                        EditorGUILayout.LabelField(item.TimeLabel, PreviewMutedValueStyle, GUILayout.Width(72f));
+                        DeucarianEditorTextGUI.LabelField(item.TimeLabel, PreviewMutedValueStyle, GUILayout.Width(72f));
                     }
 
                     if (!string.IsNullOrWhiteSpace(item.Detail))
-                        EditorGUILayout.LabelField(item.Detail, MutedStyle);
+                        DeucarianEditorTextGUI.LabelField(item.Detail, MutedStyle);
                 });
             }
         }
@@ -231,7 +231,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 if (previewLabelStyle == null)
                 {
-                    previewLabelStyle = new GUIStyle(EditorStyles.miniBoldLabel)
+                    previewLabelStyle = new GUIStyle(DeucarianEditorWorkbenchGUI.RowTitleStyle)
                     {
                         wordWrap = true
                     };
@@ -248,7 +248,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 if (previewValueStyle == null)
                 {
-                    previewValueStyle = new GUIStyle(EditorStyles.label)
+                    previewValueStyle = new GUIStyle(DeucarianEditorWorkbenchGUI.LabelStyle)
                     {
                         wordWrap = true
                     };
@@ -265,7 +265,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 if (previewMutedValueStyle == null)
                 {
-                    previewMutedValueStyle = new GUIStyle(EditorStyles.label)
+                    previewMutedValueStyle = new GUIStyle(DeucarianEditorWorkbenchGUI.LabelStyle)
                     {
                         wordWrap = true
                     };

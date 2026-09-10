@@ -171,7 +171,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 context.DrawCard("Selection", () =>
                 {
-                    EditorGUILayout.LabelField("Select a content asset from the library to inspect validation, dependencies, and reverse references.", context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField("Select a content asset from the library to inspect validation, dependencies, and reverse references.", context.MutedStyle);
                 });
                 return;
             }
@@ -294,8 +294,8 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             context.DrawInlineCard(() =>
             {
-                EditorGUILayout.LabelField("Batch Validation", context.SectionTitleStyle);
-                EditorGUILayout.LabelField(_report.BlockerCount.ToString(CultureInfo.InvariantCulture) + " blocker(s), " + _report.WarningCount.ToString(CultureInfo.InvariantCulture) + " warning(s), " + _report.InfoCount.ToString(CultureInfo.InvariantCulture) + " info item(s).", context.MutedStyle);
+                DeucarianEditorTextGUI.LabelField("Batch Validation", context.SectionTitleStyle);
+                DeucarianEditorTextGUI.LabelField(_report.BlockerCount.ToString(CultureInfo.InvariantCulture) + " blocker(s), " + _report.WarningCount.ToString(CultureInfo.InvariantCulture) + " warning(s), " + _report.InfoCount.ToString(CultureInfo.InvariantCulture) + " info item(s).", context.MutedStyle);
                 DrawSeverityRows(_report);
             });
         }
@@ -310,9 +310,9 @@ namespace Deucarian.GameContentAuthoring.Editor
         private static void DrawIssueBucket(string label, int count, IEnumerable<GameContentLibraryIssue> issues)
         {
             if (count == 0) return;
-            EditorGUILayout.LabelField(label, DeucarianEditorStyles.SectionTitle);
+            DeucarianEditorTextGUI.LabelField(label, DeucarianEditorStyles.SectionTitle);
             foreach (GameContentLibraryIssue issue in issues.Take(6))
-                EditorGUILayout.LabelField(issue.Path + ": " + issue.Message, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(issue.Path + ": " + issue.Message, DeucarianEditorStyles.MutedLabel);
         }
 
         private void DrawGroups(GameContentAuthoringContext context)
@@ -325,7 +325,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 {
                     if (group.Items.Count == 0)
                     {
-                        EditorGUILayout.LabelField("No authored assets found.", context.MutedStyle);
+                        DeucarianEditorTextGUI.LabelField("No authored assets found.", context.MutedStyle);
                         return;
                     }
 
@@ -352,11 +352,11 @@ namespace Deucarian.GameContentAuthoring.Editor
 
                         GUILayout.Space(8f);
                         EditorGUILayout.BeginVertical();
-                        EditorGUILayout.LabelField(item.DisplayName, DeucarianEditorStyles.SectionTitle);
-                        EditorGUILayout.LabelField(item.IdAndPathLabel, DeucarianEditorStyles.MutedLabel);
+                        DeucarianEditorTextGUI.LabelField(item.DisplayName, DeucarianEditorStyles.SectionTitle);
+                        DeucarianEditorTextGUI.LabelField(item.IdAndPathLabel, DeucarianEditorStyles.MutedLabel);
                         EditorGUILayout.EndVertical();
                         GUILayout.FlexibleSpace();
-                        EditorGUILayout.LabelField(item.ValidationLabel, ValidationMiniStyle(item), GUILayout.Width(84f));
+                        DeucarianEditorTextGUI.LabelField(item.ValidationLabel, ValidationMiniStyle(item), GUILayout.Width(84f));
                         GUILayout.Space(8f);
                         EditorGUILayout.EndHorizontal();
                     }
@@ -366,7 +366,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         private static GUIStyle ValidationMiniStyle(GameContentLibraryItem item)
         {
-            GUIStyle style = new GUIStyle(EditorStyles.miniBoldLabel)
+            GUIStyle style = new GUIStyle(DeucarianEditorWorkbenchGUI.RowTitleStyle)
             {
                 alignment = TextAnchor.MiddleRight,
                 wordWrap = false
@@ -401,7 +401,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 if (references == null || references.Count == 0)
                 {
-                    EditorGUILayout.LabelField(emptyText, context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField(emptyText, context.MutedStyle);
                     return;
                 }
 
@@ -412,12 +412,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                     {
                         using (new EditorGUILayout.HorizontalScope())
                         {
-                            EditorGUILayout.LabelField(reference.Target.DisplayName, DeucarianEditorStyles.SectionTitle);
+                            DeucarianEditorTextGUI.LabelField(reference.Target.DisplayName, DeucarianEditorStyles.SectionTitle);
                             GUILayout.FlexibleSpace();
-                            EditorGUILayout.LabelField(reference.Target.Category, DeucarianEditorStyles.MutedLabel, GUILayout.Width(112f));
+                            DeucarianEditorTextGUI.LabelField(reference.Target.Category, DeucarianEditorStyles.MutedLabel, GUILayout.Width(112f));
                         }
 
-                        EditorGUILayout.LabelField(string.IsNullOrWhiteSpace(reference.Target.Id) ? reference.Target.ValidationLabel : reference.Target.Id, context.MutedStyle);
+                        DeucarianEditorTextGUI.LabelField(string.IsNullOrWhiteSpace(reference.Target.Id) ? reference.Target.ValidationLabel : reference.Target.Id, context.MutedStyle);
                     });
                 }
             });
@@ -456,7 +456,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 DeucarianEditorSectionHeader.Draw(title);
                 if (references == null || references.Count == 0)
                 {
-                    EditorGUILayout.LabelField("None", context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField("None", context.MutedStyle);
                     return;
                 }
 
@@ -464,7 +464,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 {
                     GameContentLibraryReference reference = references[i];
                     if (reference == null || reference.Target == null) continue;
-                    EditorGUILayout.LabelField(reference.Target.DisplayName + " - " + reference.PropertyPath, context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField(reference.Target.DisplayName + " - " + reference.PropertyPath, context.MutedStyle);
                 }
             });
         }
@@ -476,12 +476,12 @@ namespace Deucarian.GameContentAuthoring.Editor
                 List<string> lines = GameContentLibraryReportWriter.BuildDependencyLines(selected, 3);
                 if (lines.Count == 0)
                 {
-                    EditorGUILayout.LabelField("No authored dependency edges found.", context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField("No authored dependency edges found.", context.MutedStyle);
                     return;
                 }
 
                 for (int i = 0; i < lines.Count; i++)
-                    EditorGUILayout.LabelField(lines[i], i == 0 ? DeucarianEditorStyles.SectionTitle : context.MutedStyle);
+                    DeucarianEditorTextGUI.LabelField(lines[i], i == 0 ? DeucarianEditorStyles.SectionTitle : context.MutedStyle);
             });
         }
     }

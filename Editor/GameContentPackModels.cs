@@ -467,14 +467,16 @@ namespace Deucarian.GameContentAuthoring.Editor
             bool succeeded,
             string message,
             GameContentAuthoringValidationResult validation = null,
-            IReadOnlyList<string> details = null)
+            IReadOnlyList<string> details = null, string navigationToolId = null)
         {
+            NavigationToolId = navigationToolId;
             Succeeded = succeeded;
             Message = message ?? string.Empty;
             Validation = validation;
             Details = details == null ? Array.Empty<string>() : details.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
         }
 
+        public string NavigationToolId { get; }
         public bool Succeeded { get; }
         public string Message { get; }
         public GameContentAuthoringValidationResult Validation { get; }
