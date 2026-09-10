@@ -19,7 +19,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GameContentAuthoringWindow.Open,
                 PackageId,
                 searchTerms: new[] { "content", "authoring", "assets" },
-                order: 100));
+                order: 100, createPage: GameContentAuthoringWindow.CreatePage));
             DeucarianControlCenterRegistry.RegisterCardProvider(new Provider());
         }
 
@@ -53,7 +53,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                         new DeucarianControlCenterAction(
                             "open",
                             "Open Authoring",
-                            GameContentAuthoringWindow.Open)
+                            GameContentAuthoringWindow.Open, navigationToolId: DeucarianToolIds.GameContentAuthoring)
                     },
                     searchTerms: new[] { "content", "assets", "providers" });
             }

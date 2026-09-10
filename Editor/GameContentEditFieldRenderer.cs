@@ -22,7 +22,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             bool enabled = sessionWritable && !field.IsReadOnly && current != null;
             GameContentFieldValue next = current;
 
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            using (new EditorGUILayout.VerticalScope(DeucarianEditorStyles.SectionBox))
             {
                 if (field.FieldType == GameContentFieldType.OrderedStructuredCollection)
                 {
@@ -39,7 +39,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                         EditorGUI.BeginChangeCheck();
                         using (new EditorGUILayout.HorizontalScope())
                         {
-                            EditorGUILayout.LabelField(field.DisplayName, GUILayout.Width(128f));
+                            DeucarianEditorTextGUI.LabelField(field.DisplayName, GUILayout.Width(128f));
                             next = DrawValue(context, active, field, current);
                         }
                         if (EditorGUI.EndChangeCheck() && next != null && !next.Equals(current))
@@ -53,9 +53,9 @@ namespace Deucarian.GameContentAuthoring.Editor
 
                 string detail = BuildFieldDetail(field);
                 if (!string.IsNullOrWhiteSpace(detail))
-                    EditorGUILayout.LabelField(detail, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(detail, DeucarianEditorStyles.MutedLabel);
                 if (field.IsReadOnly && !string.IsNullOrWhiteSpace(field.ReadOnlyReason))
-                    EditorGUILayout.LabelField(field.ReadOnlyReason, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(field.ReadOnlyReason, DeucarianEditorStyles.MutedLabel);
                 if (field.FieldType == GameContentFieldType.RecordReference)
                     GameContentEditReferenceRenderer.DrawReferenceStatus(context, field, current);
                 DrawFieldValidation(active.Validation, field);
@@ -70,25 +70,25 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (current == null)
             {
-                EditorGUILayout.LabelField("Unavailable", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField("Unavailable", DeucarianEditorStyles.MutedLabel);
                 return null;
             }
 
             switch (field.FieldType)
             {
                 case GameContentFieldType.Integer:
-                    return GameContentFieldValue.FromInteger(EditorGUILayout.LongField(current.IntegerValue));
+                    return GameContentFieldValue.FromInteger(DeucarianEditorInputGUI.LongField(current.IntegerValue));
                 case GameContentFieldType.Number:
-                    return GameContentFieldValue.FromNumber(EditorGUILayout.DoubleField(current.NumberValue));
+                    return GameContentFieldValue.FromNumber(DeucarianEditorInputGUI.DoubleField(current.NumberValue));
                 case GameContentFieldType.Boolean:
-                    return GameContentFieldValue.FromBoolean(EditorGUILayout.Toggle(current.BooleanValue));
+                    return GameContentFieldValue.FromBoolean(DeucarianEditorInputGUI.Toggle(current.BooleanValue));
                 case GameContentFieldType.Enum:
                     return DrawEnum(field, current);
                 case GameContentFieldType.RecordReference:
                     GameContentEditReferenceRenderer.DrawReferenceSelector(context, active, field, current);
                     return current;
                 default:
-                    return GameContentFieldValue.FromString(EditorGUILayout.TextField(current.StringValue ?? string.Empty));
+                    return GameContentFieldValue.FromString(DeucarianEditorInputGUI.TextField(current.StringValue ?? string.Empty));
             }
         }
 
@@ -102,25 +102,25 @@ namespace Deucarian.GameContentAuthoring.Editor
                 case GameContentFieldType.Integer:
                     return GameContentFieldValue.FromInteger(delayed
                         ? DrawDelayedInteger(current.IntegerValue)
-                        : EditorGUILayout.LongField(current.IntegerValue));
+                        : DeucarianEditorInputGUI.LongField(current.IntegerValue));
                 case GameContentFieldType.Number:
                     return GameContentFieldValue.FromNumber(delayed
-                        ? EditorGUILayout.DelayedDoubleField(current.NumberValue)
-                        : EditorGUILayout.DoubleField(current.NumberValue));
+                        ? DeucarianEditorInputGUI.DelayedDoubleField(current.NumberValue)
+                        : DeucarianEditorInputGUI.DoubleField(current.NumberValue));
                 case GameContentFieldType.Boolean:
-                    return GameContentFieldValue.FromBoolean(EditorGUILayout.Toggle(current.BooleanValue));
+                    return GameContentFieldValue.FromBoolean(DeucarianEditorInputGUI.Toggle(current.BooleanValue));
                 case GameContentFieldType.Enum:
                     return DrawEnum(descriptor, current);
                 default:
                     return GameContentFieldValue.FromString(delayed
-                        ? EditorGUILayout.DelayedTextField(current.StringValue ?? string.Empty)
-                        : EditorGUILayout.TextField(current.StringValue ?? string.Empty));
+                        ? DeucarianEditorInputGUI.DelayedTextField(current.StringValue ?? string.Empty)
+                        : DeucarianEditorInputGUI.TextField(current.StringValue ?? string.Empty));
             }
         }
 
         internal static long DrawDelayedInteger(long current)
         {
-            string text = EditorGUILayout.DelayedTextField(current.ToString(CultureInfo.InvariantCulture));
+            string text = DeucarianEditorInputGUI.DelayedTextField(current.ToString(CultureInfo.InvariantCulture));
             return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long value)
                 ? value
                 : current;
@@ -153,7 +153,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (field.EnumOptions.Count == 0)
             {
-                EditorGUILayout.LabelField(current.StringValue, DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField(current.StringValue, DeucarianEditorStyles.MutedLabel);
                 return current;
             }
 
@@ -161,7 +161,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             string[] labels = field.EnumOptions.Select(value => value.DisplayName).ToArray();
             int currentIndex = Array.FindIndex(tokens, value => string.Equals(value, current.StringValue, StringComparison.Ordinal));
             if (currentIndex < 0) currentIndex = 0;
-            int nextIndex = EditorGUILayout.Popup(currentIndex, labels);
+            int nextIndex = DeucarianEditorInputGUI.Popup(currentIndex, labels);
             return GameContentFieldValue.FromEnum(tokens[Mathf.Clamp(nextIndex, 0, tokens.Length - 1)]);
         }
 
@@ -223,7 +223,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 (!string.IsNullOrWhiteSpace(field.SemanticId) &&
                  string.Equals(issue.Path, field.SemanticId, StringComparison.Ordinal))).ToArray();
             for (int i = 0; i < issues.Length; i++)
-                EditorGUILayout.HelpBox(issues[i].Message, ToMessageType(issues[i].Severity));
+                DeucarianEditorTextGUI.HelpBox(issues[i].Message, ToMessageType(issues[i].Severity));
         }
 
         internal static MessageType ToMessageType(GameContentAuthoringValidationSeverity severity)

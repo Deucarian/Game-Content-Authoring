@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.3] - 2026-09-09
+
+### Changed
+
+- Adopt the shared Editor 1.7 workspace presentation: neutral surfaces, readable typography, consistent actions and aligned controls.
+- Preserve package workflows and native serialized editing; this is an editor-only presentation update.
+
+## [0.2.2] - 2026-09-09
+
+- Register package tooling and navigation actions as shared Control Center pages. Preserve the domain workflow while using Editor-owned submenus, in-window navigation, and UI scaling.
+
 ## 0.2.1 - 2026-09-09
 
 - Separate library validation, reachability and member access from discovery. Compose list/detail/graph views and scene/overlay preview rendering.

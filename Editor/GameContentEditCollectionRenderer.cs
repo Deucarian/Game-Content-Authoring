@@ -22,9 +22,9 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentCollectionFieldDescriptor descriptor = field.Collection;
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField(field.DisplayName, EditorStyles.boldLabel);
+                DeucarianEditorTextGUI.LabelField(field.DisplayName, DeucarianEditorWorkbenchGUI.BoldLabelStyle);
                 GUILayout.FlexibleSpace();
-                EditorGUILayout.LabelField(
+                DeucarianEditorTextGUI.LabelField(
                     BuildCollectionCountLabel(field, collection),
                     DeucarianEditorStyles.MutedLabel,
                     GUILayout.Width(180f));
@@ -32,12 +32,12 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             if (collection == null || descriptor == null)
             {
-                EditorGUILayout.HelpBox("The ordered collection is unavailable.", MessageType.Error);
+                DeucarianEditorTextGUI.HelpBox("The ordered collection is unavailable.", MessageType.Error);
                 return;
             }
 
             if (collection.Items.Count == 0)
-                EditorGUILayout.LabelField("No items.", DeucarianEditorStyles.MutedLabel);
+                DeucarianEditorTextGUI.LabelField("No items.", DeucarianEditorStyles.MutedLabel);
             for (int i = 0; i < collection.Items.Count; i++)
                 DrawCollectionItem(context, active, field, collection, collection.Items[i], i, enabled);
 
@@ -54,7 +54,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 GUILayout.FlexibleSpace();
                 using (new EditorGUI.DisabledScope(!enabled || restoreOperations.Count == 0))
                 {
-                    if (GUILayout.Button(
+                    if (DeucarianEditorActionGUI.Button(
                             new GUIContent(
                                 "Restore Original Order",
                                 "Reorder surviving original items by their session-start positions. Added items remain after them."),
@@ -80,7 +80,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    EditorGUILayout.LabelField((index + 1).ToString(CultureInfo.InvariantCulture), GUILayout.Width(24f));
+                    DeucarianEditorTextGUI.LabelField((index + 1).ToString(CultureInfo.InvariantCulture), GUILayout.Width(24f));
                     if (field.FieldType == GameContentFieldType.OrderedRecordReferenceCollection)
                         DrawCollectionReferenceValue(context, active, field, item, enabled);
                     else
@@ -88,7 +88,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
                     using (new EditorGUI.DisabledScope(!enabled || index <= 0))
                     {
-                        if (GUILayout.Button(new GUIContent("Up", "Move this item one position earlier."), GUILayout.Width(42f)))
+                        if (DeucarianEditorActionGUI.Button(new GUIContent("Up", "Move this item one position earlier."), GUILayout.Width(42f)))
                         {
                             ApplyCollectionOperation(
                                 context,
@@ -99,7 +99,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     }
                     using (new EditorGUI.DisabledScope(!enabled || index >= collection.Items.Count - 1))
                     {
-                        if (GUILayout.Button(new GUIContent("Down", "Move this item one position later."), GUILayout.Width(48f)))
+                        if (DeucarianEditorActionGUI.Button(new GUIContent("Down", "Move this item one position later."), GUILayout.Width(48f)))
                         {
                             ApplyCollectionOperation(
                                 context,
@@ -116,7 +116,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                         : "The collection is already at its minimum count.";
                     using (new EditorGUI.DisabledScope(!enabled || !canRemove))
                     {
-                        if (GUILayout.Button(new GUIContent("Remove", removeReason), GUILayout.Width(62f)))
+                        if (DeucarianEditorActionGUI.Button(new GUIContent("Remove", removeReason), GUILayout.Width(62f)))
                         {
                             ApplyCollectionOperation(
                                 context,
@@ -163,13 +163,13 @@ namespace Deucarian.GameContentAuthoring.Editor
             bool enabled)
         {
             GameContentRecordReferenceValue reference = item.Value.RecordReferenceValue;
-            EditorGUILayout.LabelField(
+            DeucarianEditorTextGUI.LabelField(
                 GameContentEditReferenceRenderer.DescribeReference(reference),
-                reference != null && reference.IsBroken ? EditorStyles.boldLabel : EditorStyles.label,
+                reference != null && reference.IsBroken ? DeucarianEditorWorkbenchGUI.BoldLabelStyle : DeucarianEditorWorkbenchGUI.LabelStyle,
                 GUILayout.ExpandWidth(true));
             using (new EditorGUI.DisabledScope(!enabled))
             {
-                if (GUILayout.Button(new GUIContent("Replace...", "Choose another compatible record."), GUILayout.Width(76f)))
+                if (DeucarianEditorActionGUI.Button(new GUIContent("Replace...", "Choose another compatible record."), GUILayout.Width(76f)))
                 {
                     Rect rect = GUILayoutUtility.GetLastRect();
                     GameContentReferenceCandidateSet targets = context.EditSessions.GetReferenceCandidates(
@@ -197,7 +197,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentRecordDescriptor target = GameContentEditReferenceRenderer.ResolveCurrentTarget(context, reference);
             using (new EditorGUI.DisabledScope(target == null))
             {
-                if (GUILayout.Button(new GUIContent("Open", "Open the referenced record without editing it."), GUILayout.Width(48f)))
+                if (DeucarianEditorActionGUI.Button(new GUIContent("Open", "Open the referenced record without editing it."), GUILayout.Width(48f)))
                     GameContentEditReferenceRenderer.OpenTarget(context, target);
             }
         }
@@ -218,7 +218,7 @@ namespace Deucarian.GameContentAuthoring.Editor
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("New Item", GUILayout.Width(72f));
+                DeucarianEditorTextGUI.LabelField("New Item", GUILayout.Width(72f));
                 using (new EditorGUI.DisabledScope(!enabled))
                     draft = GameContentEditFieldRenderer.DrawScalarValue(field.Collection.ItemDescriptor, draft, false);
                 context.EditWorkbenchState.ForSession(active).CollectionAddDrafts[draftKey] = draft;
@@ -230,7 +230,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     operation);
                 using (new EditorGUI.DisabledScope(!enabled || !validation.Succeeded))
                 {
-                    if (GUILayout.Button(new GUIContent("Add", validation.Message), GUILayout.Width(48f)))
+                    if (DeucarianEditorActionGUI.Button(new GUIContent("Add", validation.Message), GUILayout.Width(48f)))
                     {
                         GameContentEditOperationResult result = context.EditSessions.ApplyCollectionOperation(
                             active,
@@ -257,10 +257,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             bool canAdd = enabled && belowMaximum && targets.Candidates.Count > 0;
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("New Reference", GUILayout.Width(100f));
+                DeucarianEditorTextGUI.LabelField("New Reference", GUILayout.Width(100f));
                 using (new EditorGUI.DisabledScope(!canAdd))
                 {
-                    if (GUILayout.Button(
+                    if (DeucarianEditorActionGUI.Button(
                             new GUIContent(
                                 "Add Compatible...",
                                 belowMaximum ? targets.Message : "The collection is already at its maximum count."),
@@ -288,7 +288,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                     string reason = !belowMaximum
                         ? "Maximum count reached."
                         : string.IsNullOrWhiteSpace(targets.Message) ? "No compatible target is available." : targets.Message;
-                    EditorGUILayout.LabelField(reason, DeucarianEditorStyles.MutedLabel);
+                    DeucarianEditorTextGUI.LabelField(reason, DeucarianEditorStyles.MutedLabel);
                 }
             }
         }
@@ -302,7 +302,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         {
             if (!field.Collection.ItemDescriptor.Accepts(item.Value, out string reason))
             {
-                EditorGUILayout.HelpBox("Item " + (index + 1) + ": " + reason, MessageType.Error);
+                DeucarianEditorTextGUI.HelpBox("Item " + (index + 1) + ": " + reason, MessageType.Error);
                 return;
             }
             if (item.Value.FieldType != GameContentFieldType.RecordReference) return;
@@ -310,7 +310,7 @@ namespace Deucarian.GameContentAuthoring.Editor
             GameContentRecordReferenceValue reference = item.Value.RecordReferenceValue;
             if (reference == null || reference.IsBroken)
             {
-                EditorGUILayout.HelpBox(
+                DeucarianEditorTextGUI.HelpBox(
                     "Item " + (index + 1) + " is broken: " +
                     (reference?.BrokenReason ?? "No reference value is available."),
                     MessageType.Error);
@@ -322,7 +322,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 field.FieldId,
                 reference.TargetKey);
             if (!evaluation.IsValid)
-                EditorGUILayout.HelpBox("Item " + (index + 1) + ": " + evaluation.Reason, MessageType.Error);
+                DeucarianEditorTextGUI.HelpBox("Item " + (index + 1) + ": " + evaluation.Reason, MessageType.Error);
             GameContentRecordLensBrowser.DrawRow(
                 "Target " + (index + 1) + " ID",
                 reference.TargetKey.SourceRecordId);

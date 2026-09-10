@@ -31,8 +31,10 @@ namespace Deucarian.GameContentAuthoring.Editor
             Action<GameContentRecordDescriptor> selectRecord,
             Action<string, GameContentRecordDescriptor> openLens,
             Action requestRepaint,
-            GameContentEditWorkbenchState editWorkbenchState = null)
+            GameContentEditWorkbenchState editWorkbenchState = null,
+            Action<string> navigate = null)
         {
+            _navigate = navigate;
             Window = window;
             Provider = provider;
             Layout = layout;
@@ -52,6 +54,12 @@ namespace Deucarian.GameContentAuthoring.Editor
             _selectRecord = selectRecord;
             _openLens = openLens;
             _requestRepaint = requestRepaint;
+        }
+
+        private readonly Action<string> _navigate;
+        public void ApplyNavigation(GameContentActionResult result)
+        {
+            if (!string.IsNullOrWhiteSpace(result?.NavigationToolId)) _navigate?.Invoke(result.NavigationToolId);
         }
 
         private readonly Action _refreshLibrary;
