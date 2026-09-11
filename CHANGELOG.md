@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.4] - 2026-09-11
+
+- Compose native library, draft and imported-record pages through provider-owned Toolkit forms; retain source recovery, previews and explicit save transactions.
+- Require Editor 1.10.6 for the shared native controls, typography, responsive layouts and accessible interaction states.
+
 ## [0.2.3] - 2026-09-09
 
 ### Changed
