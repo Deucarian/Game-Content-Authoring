@@ -1,6 +1,6 @@
 # Deucarian Game Content Authoring
 
-Current package version: 0.2.4
+Current package version: 0.3.0
 
 Shared editor shell for Deucarian game content authoring providers.
 
@@ -156,3 +156,9 @@ git diff --check
 ## License
 
 MIT. See `LICENSE.md`.
+
+## Definition authoring integration
+
+The Definitions action opens the shared authoring page. Successful creation in the content editor adopts supported assets into the same code/asset workflow; the low-level asset creators retain their explicit behavior.
+
+See the [shared authoring walkthrough](https://github.com/Deucarian/Editor/blob/develop/Documentation~/DefinitionAuthoring.md). Runtime packages expose their **Definition Workflow** sample through Package Manager.
