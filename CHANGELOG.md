@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0] - 2026-09-11
+
+- Adopt content created through the authoring UI into the shared definition workflow, preserving existing asset GUIDs and domain ownership.
+- Align declared package dependencies with the definition-authoring development wave.
+
+
 ## [0.2.4] - 2026-09-11
 
 - Compose native library, draft and imported-record pages through provider-owned Toolkit forms; retain source recovery, previews and explicit save transactions.

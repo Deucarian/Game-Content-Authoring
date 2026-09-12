@@ -62,6 +62,7 @@ namespace Deucarian.GameContentAuthoring.Editor
                 contentSearch.RegisterValueChangedCallback(evt => Search(evt.newValue));
             }
             collection.Workspace.PageActions.Add(Ui.Button("Refresh", Refresh));
+            collection.Workspace.PageActions.Add(Ui.Button("Definitions", () => Deucarian.Editor.Definitions.DeucarianDefinitionWindow.Open()));
             sessionView = sessions.AttachView(QueueRefresh);
             Refresh();
         }

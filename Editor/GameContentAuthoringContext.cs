@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Deucarian.GameplayFoundation;
 using Deucarian.Editor;
+using Deucarian.Editor.Definitions;
 using UnityEditor;
 using UnityEngine;
 
@@ -185,6 +186,16 @@ namespace Deucarian.GameContentAuthoring.Editor
 
         public void SetCreationResult(GameContentCreationResult result)
         {
+            if (result != null && result.Succeeded && result.CreatedRoot is ScriptableObject asset && DeucarianDefinitionSync.FindAsset(asset) == null)
+            {
+                foreach (var schema in DeucarianDefinitionSchema.Discover())
+                    if (schema.AssetType.IsInstanceOfType(asset))
+                    {
+                        try { DeucarianDefinitionSync.Adopt(schema, asset); }
+                        catch (Exception error) { result = new GameContentCreationResult(false, "Asset saved. Enable code editing in Definitions after resolving: " + error.Message, asset); }
+                        break;
+                    }
+            }
             _setResult?.Invoke(result);
             if (result != null && result.CreatedRoot != null)
             {
