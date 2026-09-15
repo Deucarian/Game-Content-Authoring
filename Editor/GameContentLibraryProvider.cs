@@ -37,6 +37,7 @@ namespace Deucarian.GameContentAuthoring.Editor
         public string DisplayName => "All Content";
         public string Description => "Browse every record in the selected content-pack context.";
         public int SortOrder => 10;
+        internal string ContentRoot { get => NormalizedRoot; set => _rootPath = value; }
         public bool Enabled => true;
         public GameContentLensDescriptor Lens { get; } = new GameContentLensDescriptor(
             "all-content",
